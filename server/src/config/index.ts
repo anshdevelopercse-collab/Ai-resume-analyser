@@ -26,8 +26,8 @@ export const config = {
   jwt: {
     accessSecret: optional('JWT_ACCESS_SECRET', 'dev-access-secret-change-in-production'),
     refreshSecret: optional('JWT_REFRESH_SECRET', 'dev-refresh-secret-change-in-production'),
-    accessExpiresIn: optional('JWT_ACCESS_EXPIRES', '15m'),
-    refreshExpiresIn: optional('JWT_REFRESH_EXPIRES', '7d'),
+    accessExpiresIn: optional('JWT_ACCESS_EXPIRES_IN', '15m'),
+    refreshExpiresIn: optional('JWT_REFRESH_EXPIRES_IN', '7d'),
   },
 
   ai: {
@@ -42,11 +42,11 @@ export const config = {
 
   storage: {
     provider: optional('STORAGE_PROVIDER', 'local'),
-    localPath: optional('LOCAL_STORAGE_PATH', path.join(process.cwd(), 'uploads')),
+    localPath: optional('STORAGE_LOCAL_PATH', path.join(process.cwd(), 'uploads')),
     s3Bucket: optional('S3_BUCKET'),
     s3Region: optional('S3_REGION', 'us-east-1'),
-    s3AccessKey: optional('S3_ACCESS_KEY'),
-    s3SecretKey: optional('S3_SECRET_KEY'),
+    s3AccessKey: optional('S3_ACCESS_KEY_ID'),
+    s3SecretKey: optional('S3_SECRET_ACCESS_KEY'),
     s3Endpoint: optional('S3_ENDPOINT'),
   },
 
@@ -62,7 +62,7 @@ export const config = {
 
   rateLimits: {
     windowMs: parseInt(optional('RATE_LIMIT_WINDOW_MS', '60000'), 10),
-    maxRequests: parseInt(optional('RATE_LIMIT_MAX', '100'), 10),
+    maxRequests: parseInt(optional('RATE_LIMIT_MAX_REQUESTS', '100'), 10),
     authMax: parseInt(optional('AUTH_RATE_LIMIT_MAX', '10'), 10),
     uploadMax: parseInt(optional('UPLOAD_RATE_LIMIT_MAX', '5'), 10),
     aiMax: parseInt(optional('AI_RATE_LIMIT_MAX', '10'), 10),

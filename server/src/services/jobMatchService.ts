@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import { getAIProvider } from '../integrations/ai';
 import { JobMatch } from '../models/JobMatch';
 import { Resume } from '../models/Resume';
@@ -44,7 +43,13 @@ export async function createJobMatch(
   if (!resume) throw new NotFoundError('Resume');
   if (!jobDesc) throw new NotFoundError('Job description');
 
-  const idempotencyKey = `match:${userId}:${resumeId}:${jobDescriptionId}:${uuidv4()}`;
+  const idempotencyKey = `match:${userId}:${resumeId}:${jobDescriptionId}`;
+
+  const existing = await JobMatch.findOne({
+    idempotencyKey,
+    status: { $in: ['completed', 'processing'] },
+  });
+  if (existing) return existing;
 
   const match = await JobMatch.create({
     userId,

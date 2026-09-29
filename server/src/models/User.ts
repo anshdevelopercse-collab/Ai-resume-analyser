@@ -82,7 +82,6 @@ userSchema.virtual('fullName').get(function (this: IUser) {
   return `${this.firstName} ${this.lastName}`;
 });
 
-userSchema.index({ email: 1 });
 userSchema.index({ isDeleted: 1 });
 userSchema.index({ createdAt: -1 });
 

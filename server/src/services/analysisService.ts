@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import { getAIProvider, isDemoMode } from '../integrations/ai';
 import { ResumeAnalysis } from '../models/ResumeAnalysis';
 import { Resume } from '../models/Resume';
@@ -54,7 +53,7 @@ export async function createAnalysis(
     userId,
     resumeId,
     status: 'processing',
-    idempotencyKey: `${idempotencyKey}:${uuidv4()}`,
+    idempotencyKey,
     provider: 'pending',
     aiModel: 'pending',
   });
