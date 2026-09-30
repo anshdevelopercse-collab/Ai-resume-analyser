@@ -35,12 +35,17 @@ app.use(cors({
       'http://localhost:5173',
       'http://localhost:3000',
       'http://localhost:4173',
+      // Docker: nginx serves the built client on port 80; browsers send Origin: http://localhost
+      'http://localhost',
+      'http://localhost:80',
     ].filter(Boolean);
 
     if (!origin || allowed.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error(`CORS: origin ${origin} not allowed`));
+      const err = new Error(`CORS: origin ${origin} not allowed`) as any;
+      err.status = 403;
+      callback(err);
     }
   },
   credentials: true,

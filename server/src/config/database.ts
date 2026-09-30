@@ -2,6 +2,10 @@ import mongoose from 'mongoose';
 import { config } from './index';
 import { logger } from '../utils/logger';
 
+// Fail fast when DB is unavailable; default buffer timeout is 10 s which turns
+// into a silent 500. 5 s matches the serverSelectionTimeoutMS below.
+mongoose.set('bufferTimeoutMS', 5000);
+
 let isConnected = false;
 
 export async function connectDatabase(): Promise<void> {

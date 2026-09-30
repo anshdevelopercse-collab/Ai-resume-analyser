@@ -60,6 +60,39 @@ export function errorHandler(
 ): void {
   const requestId = (req as any).requestId;
 
+  // CORS rejection — return 403 instead of falling through to 500
+  if (err.message?.startsWith('CORS:')) {
+    res.status(403).json({
+      success: false,
+      error: 'Forbidden: cross-origin request not allowed',
+      requestId,
+    });
+    return;
+  }
+
+  // MongoDB / Mongoose connection errors — return 503
+  if (
+    err.name === 'MongooseError' ||
+    err.name === 'MongoServerSelectionError' ||
+    err.name === 'MongoNotConnectedError' ||
+    err.name === 'MongoNetworkError' ||
+    err.name === 'MongoTimeoutError'
+  ) {
+    logger.error('Database unavailable', {
+      error: err.message,
+      name: err.name,
+      requestId,
+      path: req.path,
+      method: req.method,
+    });
+    res.status(503).json({
+      success: false,
+      error: 'Service temporarily unavailable. Please try again shortly.',
+      requestId,
+    });
+    return;
+  }
+
   if (err instanceof ZodError) {
     const errors: Record<string, string[]> = {};
     err.errors.forEach((e) => {
