@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate, requireAdmin } from '../middleware/auth';
 import { listUsers, setUserRole, countActiveUsers } from '../repositories/userRepository';
-import { Resume } from '../models/Resume';
+import { countActiveResumes } from '../repositories/resumeRepository';
 import { ResumeAnalysis } from '../models/ResumeAnalysis';
 import { Application } from '../models/Application';
 import { Response, NextFunction } from 'express';
@@ -33,7 +33,7 @@ router.get('/stats', async (_req: AuthRequest, res: Response, next: NextFunction
     const totalUsers = await countActiveUsers();
 
     const [totalResumes, totalAnalyses, totalApplications] = await Promise.all([
-      Resume.countDocuments({ isDeleted: false }),
+      countActiveResumes(),
       ResumeAnalysis.countDocuments(),
       Application.countDocuments({ isDeleted: false }),
     ]);

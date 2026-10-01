@@ -178,7 +178,7 @@ export default function ResumesPage() {
       ) : (
         <div className="space-y-3">
           {data?.data?.map((resume: any) => (
-            <Card key={resume._id}>
+            <Card key={resume.id}>
               <CardContent className="p-4 flex items-center gap-4">
                 <div className="h-10 w-10 rounded-lg bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center shrink-0">
                   <FileText className="h-5 w-5 text-indigo-600" />
@@ -202,7 +202,7 @@ export default function ResumesPage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => analyzeMutation.mutate(resume._id)}
+                    onClick={() => analyzeMutation.mutate(resume.id)}
                     disabled={analyzeMutation.isPending}
                   >
                     <BarChart2 className="mr-1.5 h-4 w-4" />
@@ -213,7 +213,7 @@ export default function ResumesPage() {
                     variant="ghost"
                     asChild
                   >
-                    <Link to={`/resumes/${resume._id}`}>View</Link>
+                    <Link to={`/resumes/${resume.id}`}>View</Link>
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -222,14 +222,14 @@ export default function ResumesPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleDownload(resume._id, resume.originalName)}>
+                      <DropdownMenuItem onClick={() => handleDownload(resume.id, resume.originalName)}>
                         <Download className="mr-2 h-4 w-4" /> Download
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-destructive"
                         onClick={() => {
                           if (confirm('Delete this resume?')) {
-                            deleteMutation.mutate(resume._id);
+                            deleteMutation.mutate(resume.id);
                           }
                         }}
                       >

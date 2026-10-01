@@ -13,9 +13,9 @@ from MongoDB/Mongoose to PostgreSQL/Prisma.
 |---|---|---|
 | **User** | `users` | All user CRUD, role, plan, usage counters, soft-delete |
 | **RefreshToken** | `refresh_tokens` | Token rotation, family wipe on replay, atomic claim |
+| **Resume** | `resumes` | File uploads, storage keys, extracted text, soft-delete |
 
-All authentication flows (register, login, refresh, logout, password reset,
-email verification, account deletion) read and write **only** PostgreSQL.
+All authentication flows and resume CRUD read and write **only** PostgreSQL.
 
 ---
 
@@ -23,13 +23,15 @@ email verification, account deletion) read and write **only** PostgreSQL.
 
 | Mongoose Model | Collection | Domain |
 |---|---|---|
-| `Resume` | `resumes` | Resume file uploads, storage keys, extracted text |
 | `ResumeAnalysis` | `resumeanalyses` | AI analysis results, status, tokens used |
 | `JobDescription` | `jobdescriptions` | Job description text |
 | `JobMatch` | `jobmatches` | Resume↔Job AI match results |
 | `InterviewSession` | `interviewsessions` | Interview questions and session state |
 | `Roadmap` | `roadmaps` | Career roadmap milestones and skill gaps |
 | `Application` | `applications` | Job application tracker |
+
+**Cross-DB note**: `ResumeAnalysis.userId` and `ResumeAnalysis.resumeId` were changed from
+`ObjectId` to `String` in Phase 3 to store PostgreSQL UUIDs. Cross-DB populate removed.
 
 These models will be migrated domain-by-domain in Phases 6–8.
 MongoDB must remain running until all domains are migrated.
@@ -47,9 +49,9 @@ Express + Middleware (auth.ts)
      │
      ├──▶ Auth routes      → PostgreSQL only  ✅  Phase 2 complete
      │
-     ├──▶ Resume routes    → MongoDB (Mongoose)   Phase 6 pending
+     ├──▶ Resume routes    → PostgreSQL (Prisma)  ✅  Phase 3 complete
      ├──▶ Job routes       → MongoDB (Mongoose)   Phase 6 pending
-     ├──▶ Analysis routes  → MongoDB (Mongoose)   Phase 6 pending
+     ├──▶ Analysis routes  → MongoDB (Mongoose) + PostgreSQL Resume   Phase 4 pending
      ├──▶ Interview routes → MongoDB (Mongoose)   Phase 6 pending
      ├──▶ Roadmap routes   → MongoDB (Mongoose)   Phase 6 pending
      ├──▶ Application rts  → MongoDB (Mongoose)   Phase 6 pending
@@ -85,7 +87,7 @@ Express + Middleware (auth.ts)
 |---|---|---|
 | 1 — Prisma foundation | ✅ Done (commit `511566a`) | Schema, migration SQL, Docker, Dockerfile |
 | 2 — User + Auth | ✅ Done (commit `4507a28` + fixes) | User, RefreshToken, all auth services |
-| 3 — Resume | ⏳ Not started | |
+| 3 — Resume | ✅ Done | Resume, storageKey protection, IDOR, cross-DB analysis fix |
 | 4 — ResumeAnalysis | ⏳ Not started | |
 | 5 — JobDescription | ⏳ Not started | |
 | 6 — JobMatch | ⏳ Not started | |

@@ -135,10 +135,10 @@ model RefreshToken {
 model Resume {
   id            String    @id @default(uuid()) @db.Uuid
   userId        String    @db.Uuid @map("user_id")
-  filename      String?   @db.VarChar(255)
-  originalName  String?   @db.VarChar(255) @map("original_name")
-  mimeType      String?   @db.VarChar(100) @map("mime_type")
-  sizeBytes     Int?      @map("size_bytes")
+  filename      String    @db.VarChar(255)
+  originalName  String    @db.VarChar(255) @map("original_name")
+  mimeType      String    @db.VarChar(100) @map("mime_type")
+  sizeBytes     Int       @map("size_bytes")
   // storageKey: internal file path — NEVER returned in API responses
   storageKey    String    @db.VarChar(512) @map("storage_key")
   extractedText String    @default("") @map("extracted_text")

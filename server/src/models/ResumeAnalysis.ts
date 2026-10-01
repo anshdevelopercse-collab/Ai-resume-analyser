@@ -2,8 +2,8 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 import { ANALYSIS_STATUS } from '@resumeiq/shared';
 
 export interface IResumeAnalysis extends Document {
-  userId: mongoose.Types.ObjectId;
-  resumeId: mongoose.Types.ObjectId;
+  userId: string;
+  resumeId: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   provider: string;
   aiModel: string;
@@ -28,8 +28,9 @@ const sectionScoreSchema = new Schema({
 
 const resumeAnalysisSchema = new Schema<IResumeAnalysis>(
   {
-    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    resumeId: { type: Schema.Types.ObjectId, ref: 'Resume', required: true },
+    // PostgreSQL UUIDs since Phase 2 (User) and Phase 3 (Resume) — stored as plain strings
+    userId: { type: String, required: true },
+    resumeId: { type: String, required: true },
     status: {
       type: String,
       enum: Object.values(ANALYSIS_STATUS),
