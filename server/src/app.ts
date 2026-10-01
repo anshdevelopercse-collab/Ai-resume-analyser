@@ -88,6 +88,7 @@ app.get('/ready', async (_req, res) => {
       status: dbReady ? 'ready' : 'not_ready',
       db: dbReady ? 'connected' : 'disconnected',
       demoMode: isDemoMode(),
+      disableAuth: config.disableAuth,
       timestamp: new Date().toISOString(),
     });
   } catch {

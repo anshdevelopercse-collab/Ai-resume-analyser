@@ -3,9 +3,31 @@ import { config } from './config';
 import { logger } from './utils/logger';
 import app from './app';
 
+async function seedDemoUser(): Promise<void> {
+  const { User } = await import('./models/User');
+  const { hashPassword } = await import('./services/authService');
+  const existing = await User.findOne({ email: 'demo@resumeiq.local' });
+  if (existing) return;
+  const password = await hashPassword('Demo1234!');
+  await User.create({
+    email: 'demo@resumeiq.local',
+    password,
+    firstName: 'Demo',
+    lastName: 'Admin',
+    role: 'admin',
+    emailVerified: true,
+  });
+  logger.info('Demo user seeded (demo@resumeiq.local)');
+}
+
 async function start(): Promise<void> {
   try {
     await connectDatabase();
+
+    if (config.disableAuth) {
+      await seedDemoUser();
+      logger.warn('DISABLE_AUTH=true — authentication is bypassed, demo user auto-login is active');
+    }
 
     const server = app.listen(config.port, () => {
       logger.info(`ResumeIQ server started`, {

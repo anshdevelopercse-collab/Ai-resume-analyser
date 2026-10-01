@@ -71,4 +71,7 @@ export const config = {
   isProduction: optional('NODE_ENV', 'development') === 'production',
   isDevelopment: optional('NODE_ENV', 'development') === 'development',
   isTest: optional('NODE_ENV', 'development') === 'test',
+
+  // Set DISABLE_AUTH=true to skip login entirely (demo/testing only)
+  disableAuth: optional('DISABLE_AUTH', 'false') === 'true',
 };

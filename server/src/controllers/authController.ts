@@ -4,7 +4,7 @@ import {
   verifyEmail, initiatePasswordReset, resetPassword,
   changePassword,
 } from '../services/authService';
-import { revokeRefreshToken } from '../services/tokenService';
+import { revokeRefreshToken, generateTokenPair } from '../services/tokenService';
 import { AuthRequest } from '../middleware/auth';
 import { User } from '../models/User';
 import { config } from '../config';
@@ -200,6 +200,43 @@ export async function changePasswordHandler(
     await changePassword(req.userId!, req.body.currentPassword, req.body.newPassword);
     res.clearCookie('refreshToken', COOKIE_OPTS);
     res.json({ success: true, message: 'Password changed. Please log in again.' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function autoLogin(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!config.disableAuth) {
+      res.status(404).json({ success: false, error: 'Not found' });
+      return;
+    }
+
+    const demoUser = await User.findOne({ email: 'demo@resumeiq.local' });
+    if (!demoUser) {
+      res.status(503).json({ success: false, error: 'Demo user not initialized. Restart the server.' });
+      return;
+    }
+
+    const tokens = await generateTokenPair(String(demoUser._id), demoUser.role);
+    res.cookie('refreshToken', tokens.refreshToken, COOKIE_OPTS);
+
+    res.json({
+      success: true,
+      data: {
+        accessToken: tokens.accessToken,
+        user: {
+          id: demoUser._id,
+          email: demoUser.email,
+          firstName: demoUser.firstName,
+          lastName: demoUser.lastName,
+          role: demoUser.role,
+          plan: demoUser.plan,
+          emailVerified: demoUser.emailVerified,
+          avatarUrl: demoUser.avatarUrl,
+        },
+      },
+    });
   } catch (err) {
     next(err);
   }
