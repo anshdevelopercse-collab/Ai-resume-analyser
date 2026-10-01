@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
+import { incrementUsage } from '../repositories/userRepository';
 import { JobDescription } from '../models/JobDescription';
 import { createJobMatch, getJobMatch, getUserJobMatches } from '../services/jobMatchService';
 import { NotFoundError } from '../middleware/errorHandler';
@@ -97,7 +98,7 @@ export async function startJobMatch(
     const { resumeId } = req.body;
     const match = await createJobMatch(req.userId!, resumeId, req.params.jobId as string);
 
-    await req.user?.updateOne({ $inc: { 'usage.jobMatches': 1 } });
+    await incrementUsage(req.userId!, 'usageJobMatches');
 
     res.status(202).json({
       success: true,

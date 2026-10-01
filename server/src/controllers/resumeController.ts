@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
+import { incrementUsage } from '../repositories/userRepository';
 import { Resume } from '../models/Resume';
 import { uploadFile, downloadFile, deleteFile } from '../integrations/storage';
 import { parseDocument, validateFileMagicBytes } from '../services/fileParser';
@@ -44,7 +45,7 @@ export async function uploadResume(
     });
 
     // Update usage counter
-    await req.user?.updateOne({ $inc: { 'usage.resumeUploads': 1 } });
+    await incrementUsage(req.userId!, 'usageResumeUploads');
 
     res.status(201).json({
       success: true,

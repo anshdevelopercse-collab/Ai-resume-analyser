@@ -83,10 +83,22 @@ app.get('/health', (_req, res) => {
 app.get('/ready', async (_req, res) => {
   try {
     const mongoose = await import('mongoose');
-    const dbReady = mongoose.default.connection.readyState === 1;
-    res.json({
-      status: dbReady ? 'ready' : 'not_ready',
-      db: dbReady ? 'connected' : 'disconnected',
+    const mongoReady = mongoose.default.connection.readyState === 1;
+
+    let pgReady = false;
+    try {
+      const { prisma } = await import('./lib/prisma');
+      await prisma.$queryRaw`SELECT 1`;
+      pgReady = true;
+    } catch {
+      pgReady = false;
+    }
+
+    const allReady = mongoReady && pgReady;
+    res.status(allReady ? 200 : 503).json({
+      status: allReady ? 'ready' : 'not_ready',
+      mongo: mongoReady ? 'connected' : 'disconnected',
+      postgres: pgReady ? 'connected' : 'disconnected',
       demoMode: isDemoMode(),
       disableAuth: config.disableAuth,
       timestamp: new Date().toISOString(),

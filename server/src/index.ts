@@ -1,30 +1,36 @@
 import { connectDatabase } from './config/database';
+import { connectPrisma, disconnectPrisma, cleanupExpiredRefreshTokens } from './lib/prisma';
 import { config } from './config';
 import { logger } from './utils/logger';
 import app from './app';
 
 async function seedSampleUser(): Promise<void> {
-  const { User } = await import('./models/User');
+  const { upsertUserByEmail } = await import('./repositories/userRepository');
   const { hashPassword } = await import('./services/authService');
-  const existing = await User.findOne({ email: 'demo@resumeiq.local' });
-  if (existing) return;
-  const password = await hashPassword('Demo1234!');
-  await User.create({
+  const passwordHash = await hashPassword('Demo1234!');
+  const user = await upsertUserByEmail('demo@resumeiq.local', {
     email: 'demo@resumeiq.local',
-    password,
+    passwordHash,
     firstName: 'Demo',
     lastName: 'Admin',
     role: 'admin',
     emailVerified: true,
   });
-  logger.info('Sample user ready — email: demo@resumeiq.local  password: Demo1234!');
+  logger.info('Sample user ready', { email: user.email, hint: 'password: Demo1234!' });
 }
 
 async function start(): Promise<void> {
   try {
+    // Connect MongoDB (existing services still use Mongoose)
     await connectDatabase();
 
-    // Always seed the sample account so there is a ready-to-use login
+    // Connect PostgreSQL (new Prisma layer)
+    await connectPrisma();
+
+    // Clean up any expired refresh tokens from previous runs
+    await cleanupExpiredRefreshTokens();
+
+    // Seed demo account into PostgreSQL
     await seedSampleUser();
 
     if (config.disableAuth) {
@@ -45,6 +51,7 @@ async function start(): Promise<void> {
       server.close(async () => {
         const { disconnectDatabase } = await import('./config/database');
         await disconnectDatabase();
+        await disconnectPrisma();
         logger.info('Server shut down');
         process.exit(0);
       });
