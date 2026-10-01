@@ -31,6 +31,20 @@ export async function markTokenUsed(id: string): Promise<void> {
   await prisma.refreshToken.update({ where: { id }, data: { used: true } });
 }
 
+/**
+ * Atomically marks a token as used only if it was not already used.
+ * Uses UPDATE WHERE used=false so that concurrent requests racing on the
+ * same token will have exactly one winner (count=1) and one loser (count=0).
+ * Returns true if this caller successfully claimed the token.
+ */
+export async function claimTokenAtomic(id: string): Promise<boolean> {
+  const result = await prisma.refreshToken.updateMany({
+    where: { id, used: false },
+    data: { used: true },
+  });
+  return result.count > 0;
+}
+
 export async function deleteRefreshToken(tokenValue: string): Promise<void> {
   await prisma.refreshToken.deleteMany({ where: { token: tokenValue } });
 }

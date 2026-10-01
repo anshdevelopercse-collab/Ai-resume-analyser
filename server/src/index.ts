@@ -21,8 +21,15 @@ async function seedSampleUser(): Promise<void> {
 
 async function start(): Promise<void> {
   try {
-    // Connect MongoDB (existing services still use Mongoose)
-    await connectDatabase();
+    // Connect MongoDB (existing services still use Mongoose).
+    // Non-fatal in development: auth is now fully on PostgreSQL.
+    // MongoDB-backed domains will return 503 until Mongo is available.
+    try {
+      await connectDatabase();
+    } catch (err) {
+      if (config.isProduction) throw err;
+      logger.warn('MongoDB unavailable — non-auth routes will be degraded', { error: (err as Error).message });
+    }
 
     // Connect PostgreSQL (new Prisma layer)
     await connectPrisma();

@@ -5,7 +5,7 @@ import { config } from '../config';
 import {
   createRefreshToken,
   findRefreshToken,
-  markTokenUsed,
+  claimTokenAtomic,
   deleteRefreshToken,
   deleteTokenFamily,
   deleteAllUserTokens,
@@ -54,7 +54,7 @@ export async function rotateRefreshToken(
   if (!existing) return null;
 
   if (existing.used) {
-    // Potential token reuse attack — invalidate entire family
+    // Token reuse attack — invalidate entire family
     await deleteTokenFamily(existing.family);
     return null;
   }
@@ -64,8 +64,15 @@ export async function rotateRefreshToken(
     return null;
   }
 
-  // Mark current token as used (atomic: update before issuing new pair)
-  await markTokenUsed(existing.id);
+  // Atomically claim the token: UPDATE WHERE used=false.
+  // Under concurrent requests with the same token, exactly one wins (count=1).
+  // The loser gets count=0 and is treated as a replay attempt.
+  const claimed = await claimTokenAtomic(existing.id);
+  if (!claimed) {
+    // Another concurrent request already used this token — treat as replay
+    await deleteTokenFamily(existing.family);
+    return null;
+  }
 
   const user = await findUserById(existing.userId);
   if (!user) return null;

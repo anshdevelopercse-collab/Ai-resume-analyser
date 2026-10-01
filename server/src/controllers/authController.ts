@@ -4,7 +4,7 @@ import {
   verifyEmail, initiatePasswordReset, resetPassword,
   changePassword,
 } from '../services/authService';
-import { revokeRefreshToken, generateTokenPair } from '../services/tokenService';
+import { revokeRefreshToken, revokeAllUserTokens, generateTokenPair } from '../services/tokenService';
 import { AuthRequest } from '../middleware/auth';
 import { findUserByEmail, updateUser, softDeleteUser } from '../repositories/userRepository';
 import { config } from '../config';
@@ -256,6 +256,7 @@ export async function deleteAccount(
     const scrubEmail = `deleted_${Date.now()}_${req.user!.email}`;
     await updateUser(userId, { email: scrubEmail });
     await softDeleteUser(userId);
+    await revokeAllUserTokens(userId);
     res.clearCookie('refreshToken', COOKIE_OPTS);
     res.json({ success: true, message: 'Account deleted' });
   } catch (err) {
