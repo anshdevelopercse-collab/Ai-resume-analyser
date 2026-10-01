@@ -3,7 +3,7 @@ import { config } from './config';
 import { logger } from './utils/logger';
 import app from './app';
 
-async function seedDemoUser(): Promise<void> {
+async function seedSampleUser(): Promise<void> {
   const { User } = await import('./models/User');
   const { hashPassword } = await import('./services/authService');
   const existing = await User.findOne({ email: 'demo@resumeiq.local' });
@@ -17,16 +17,18 @@ async function seedDemoUser(): Promise<void> {
     role: 'admin',
     emailVerified: true,
   });
-  logger.info('Demo user seeded (demo@resumeiq.local)');
+  logger.info('Sample user ready — email: demo@resumeiq.local  password: Demo1234!');
 }
 
 async function start(): Promise<void> {
   try {
     await connectDatabase();
 
+    // Always seed the sample account so there is a ready-to-use login
+    await seedSampleUser();
+
     if (config.disableAuth) {
-      await seedDemoUser();
-      logger.warn('DISABLE_AUTH=true — authentication is bypassed, demo user auto-login is active');
+      logger.warn('DISABLE_AUTH=true — authentication bypassed, demo auto-login active');
     }
 
     const server = app.listen(config.port, () => {
