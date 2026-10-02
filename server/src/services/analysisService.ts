@@ -1,4 +1,4 @@
-import { getAIProvider, isDemoMode } from '../integrations/ai';
+import { getAIProvider } from '../integrations/ai';
 import { ResumeAnalysis } from '../models/ResumeAnalysis';
 import { findResumeForAnalysis } from '../repositories/resumeRepository';
 import { AppError, NotFoundError } from '../middleware/errorHandler';

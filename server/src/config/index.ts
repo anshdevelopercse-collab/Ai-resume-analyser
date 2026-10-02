@@ -31,7 +31,7 @@ export const config = {
   },
 
   ai: {
-    provider: optional('AI_PROVIDER', 'demo'),
+    provider: optional('AI_PROVIDER', 'auto'),
     anthropicApiKey: optional('ANTHROPIC_API_KEY'),
     anthropicModel: optional('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001'),
     openaiApiKey: optional('OPENAI_API_KEY'),
@@ -72,6 +72,4 @@ export const config = {
   isDevelopment: optional('NODE_ENV', 'development') === 'development',
   isTest: optional('NODE_ENV', 'development') === 'test',
 
-  // Set DISABLE_AUTH=true to skip login entirely (demo/testing only)
-  disableAuth: optional('DISABLE_AUTH', 'false') === 'true',
 };

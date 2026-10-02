@@ -4,7 +4,6 @@ import { incrementUsage } from '../repositories/userRepository';
 import { JobDescription } from '../models/JobDescription';
 import { createJobMatch, getJobMatch, getUserJobMatches } from '../services/jobMatchService';
 import { NotFoundError } from '../middleware/errorHandler';
-import { isDemoMode } from '../integrations/ai';
 
 export async function createJobDescription(
   req: AuthRequest, res: Response, next: NextFunction
@@ -100,16 +99,7 @@ export async function startJobMatch(
 
     await incrementUsage(req.userId!, 'usageJobMatches');
 
-    res.status(202).json({
-      success: true,
-      data: match,
-      meta: {
-        demoMode: isDemoMode(),
-        message: isDemoMode()
-          ? 'Running in demo mode. Configure an AI provider for real matching.'
-          : undefined,
-      },
-    });
+    res.status(202).json({ success: true, data: match });
   } catch (err) {
     next(err);
   }

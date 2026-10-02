@@ -4,7 +4,7 @@ import { AuthRequest } from '../middleware/auth';
 import { Roadmap } from '../models/Roadmap';
 import { Resume } from '../models/Resume';
 import { JobDescription } from '../models/JobDescription';
-import { getAIProvider, isDemoMode } from '../integrations/ai';
+import { getAIProvider } from '../integrations/ai';
 import { AppError, NotFoundError } from '../middleware/errorHandler';
 import { logger } from '../utils/logger';
 
@@ -46,11 +46,7 @@ export async function generateRoadmap(req: AuthRequest, res: Response, next: Nex
       logger.error('Roadmap processing error', { err, roadmapId: roadmap._id });
     });
 
-    res.status(202).json({
-      success: true,
-      meta: { demoMode: isDemoMode() },
-      data: roadmap,
-    });
+    res.status(202).json({ success: true, data: roadmap });
   } catch (err) {
     next(err);
   }

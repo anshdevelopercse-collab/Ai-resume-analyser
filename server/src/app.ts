@@ -9,7 +9,6 @@ import { requestId } from './middleware/requestId';
 import { errorHandler } from './middleware/errorHandler';
 import { config } from './config';
 import { logger } from './utils/logger';
-import { isDemoMode } from './integrations/ai';
 
 import authRoutes from './routes/auth';
 import resumeRoutes from './routes/resumes';
@@ -99,8 +98,6 @@ app.get('/ready', async (_req, res) => {
       status: allReady ? 'ready' : 'not_ready',
       mongo: mongoReady ? 'connected' : 'disconnected',
       postgres: pgReady ? 'connected' : 'disconnected',
-      demoMode: isDemoMode(),
-      disableAuth: config.disableAuth,
       timestamp: new Date().toISOString(),
     });
   } catch {
@@ -122,7 +119,6 @@ app.get('/api/v1', (_req, res) => {
   res.json({
     name: 'ResumeIQ API',
     version: '1.0.0',
-    demoMode: isDemoMode(),
     endpoints: {
       auth: '/api/v1/auth',
       resumes: '/api/v1/resumes',

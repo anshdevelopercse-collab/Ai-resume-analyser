@@ -4,20 +4,6 @@ import { config } from './config';
 import { logger } from './utils/logger';
 import app from './app';
 
-async function seedSampleUser(): Promise<void> {
-  const { upsertUserByEmail } = await import('./repositories/userRepository');
-  const { hashPassword } = await import('./services/authService');
-  const passwordHash = await hashPassword('Demo1234!');
-  const user = await upsertUserByEmail('demo@resumeiq.local', {
-    email: 'demo@resumeiq.local',
-    passwordHash,
-    firstName: 'Demo',
-    lastName: 'Admin',
-    role: 'admin',
-    emailVerified: true,
-  });
-  logger.info('Sample user ready', { email: user.email, hint: 'password: Demo1234!' });
-}
 
 async function start(): Promise<void> {
   try {
@@ -36,13 +22,6 @@ async function start(): Promise<void> {
 
     // Clean up any expired refresh tokens from previous runs
     await cleanupExpiredRefreshTokens();
-
-    // Seed demo account into PostgreSQL
-    await seedSampleUser();
-
-    if (config.disableAuth) {
-      logger.warn('DISABLE_AUTH=true — authentication bypassed, demo auto-login active');
-    }
 
     const server = app.listen(config.port, () => {
       logger.info(`ResumeIQ server started`, {

@@ -3,7 +3,7 @@ import { AuthRequest } from '../middleware/auth';
 import { InterviewSession } from '../models/InterviewSession';
 import { Resume } from '../models/Resume';
 import { JobDescription } from '../models/JobDescription';
-import { getAIProvider, isDemoMode } from '../integrations/ai';
+import { getAIProvider } from '../integrations/ai';
 import { NotFoundError } from '../middleware/errorHandler';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../utils/logger';
@@ -90,10 +90,7 @@ export async function generateInterviewQuestions(
     res.status(201).json({
       success: true,
       data: session,
-      meta: {
-        demoMode: isDemoMode(),
-        disclaimer,
-      },
+      meta: { disclaimer },
     });
   } catch (err) {
     next(err);
@@ -146,24 +143,20 @@ export async function submitAnswer(
     question.userAnswer = String(answer).slice(0, 5000);
 
     // Generate AI feedback
-    if (!isDemoMode()) {
-      const provider = getAIProvider();
-      const feedbackPrompt = `Rate this interview answer for: "${question.question}"
+    const provider = getAIProvider();
+    const feedbackPrompt = `Rate this interview answer for: "${question.question}"
 
 Answer: ${question.userAnswer}
 
 Provide brief constructive feedback on: content quality, STAR structure (if behavioral), missing points, and one specific improvement. Be encouraging but honest. Max 200 words.`;
 
-      try {
-        const result = await provider.complete([
-          { role: 'user', content: feedbackPrompt },
-        ], { maxTokens: 400 });
-        question.aiFeedback = result.content;
-      } catch {
-        question.aiFeedback = 'Feedback unavailable at this time.';
-      }
-    } else {
-      question.aiFeedback = '[DEMO] Your answer was recorded. Configure an AI provider to receive personalized feedback on your interview answers.';
+    try {
+      const result = await provider.complete([
+        { role: 'user', content: feedbackPrompt },
+      ], { maxTokens: 400 });
+      question.aiFeedback = result.content;
+    } catch {
+      question.aiFeedback = 'Feedback unavailable at this time.';
     }
 
     await session.save();

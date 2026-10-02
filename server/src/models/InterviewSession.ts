@@ -39,8 +39,8 @@ const interviewSessionSchema = new Schema<IInterviewSession>(
       aiFeedback: String,
     }],
     status: { type: String, enum: ['draft', 'active', 'completed'], default: 'draft' },
-    provider: { type: String, default: 'demo' },
-    aiModel: { type: String, default: 'demo' },
+    provider: { type: String, default: 'pending' },
+    aiModel: { type: String, default: 'pending' },
   },
   { timestamps: true }
 );
