@@ -1,9 +1,14 @@
 import { Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { AuthRequest } from '../middleware/auth';
-import { Roadmap } from '../models/Roadmap';
-import { Resume } from '../models/Resume';
-import { JobDescription } from '../models/JobDescription';
+import {
+  createRoadmap,
+  findRoadmapById,
+  updateRoadmap,
+  listRoadmaps,
+} from '../repositories/roadmapRepository';
+import { findResumeById } from '../repositories/resumeRepository';
+import { findJobDescriptionById } from '../repositories/jobDescriptionRepository';
 import { getAIProvider } from '../integrations/ai';
 import { AppError, NotFoundError } from '../middleware/errorHandler';
 import { logger } from '../utils/logger';
@@ -25,16 +30,16 @@ export async function generateRoadmap(req: AuthRequest, res: Response, next: Nex
     let jobText = '';
 
     if (resumeId) {
-      const resume = await Resume.findOne({ _id: resumeId, userId, isDeleted: false });
+      const resume = await findResumeById(resumeId, userId);
       if (resume?.extractedText) resumeText = resume.extractedText.slice(0, 4000);
     }
 
     if (jobDescriptionId) {
-      const job = await JobDescription.findOne({ _id: jobDescriptionId, userId });
+      const job = await findJobDescriptionById(jobDescriptionId, userId);
       if (job?.description) jobText = job.description.slice(0, 2000);
     }
 
-    const roadmap = await Roadmap.create({
+    const roadmap = await createRoadmap({
       userId,
       targetRole,
       resumeId: resumeId || undefined,
@@ -42,8 +47,8 @@ export async function generateRoadmap(req: AuthRequest, res: Response, next: Nex
       status: 'processing',
     });
 
-    processRoadmap(roadmap._id.toString(), targetRole, resumeText, jobText, userId).catch((err) => {
-      logger.error('Roadmap processing error', { err, roadmapId: roadmap._id });
+    processRoadmap(roadmap.id, targetRole, resumeText, jobText).catch((err) => {
+      logger.error('Roadmap processing error', { err, roadmapId: roadmap.id });
     });
 
     res.status(202).json({ success: true, data: roadmap });
@@ -57,7 +62,6 @@ async function processRoadmap(
   targetRole: string,
   resumeText: string,
   jobText: string,
-  _userId: string,
 ): Promise<void> {
   try {
     const provider = getAIProvider();
@@ -110,7 +114,7 @@ Guidelines:
       completed: false,
     }));
 
-    await Roadmap.findByIdAndUpdate(roadmapId, {
+    await updateRoadmap(roadmapId, {
       status: 'completed',
       provider: provider.name,
       summary: String(result.summary || '').slice(0, 1000),
@@ -119,7 +123,7 @@ Guidelines:
     });
   } catch (err) {
     logger.error('Roadmap AI processing failed', { err, roadmapId });
-    await Roadmap.findByIdAndUpdate(roadmapId, { status: 'failed' });
+    await updateRoadmap(roadmapId, { status: 'failed' });
   }
 }
 
@@ -128,11 +132,7 @@ export async function getRoadmaps(req: AuthRequest, res: Response, next: NextFun
     const userId = req.userId!;
     const limit = Math.min(Number(req.query.limit) || 10, 50);
 
-    const roadmaps = await Roadmap.find({ userId })
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .lean();
-
+    const roadmaps = await listRoadmaps(userId, limit);
     res.json({ success: true, data: roadmaps });
   } catch (err) {
     next(err);
@@ -145,16 +145,17 @@ export async function updateMilestone(req: AuthRequest, res: Response, next: Nex
     const { roadmapId, milestoneId } = req.params;
     const { completed } = req.body as { completed: boolean };
 
-    const roadmap = await Roadmap.findOne({ _id: roadmapId, userId });
+    const roadmap = await findRoadmapById(roadmapId, userId);
     if (!roadmap) throw new NotFoundError('Roadmap');
 
-    const milestone = roadmap.milestones.find(m => m.id === milestoneId);
+    const milestones = roadmap.milestones as any[];
+    const milestone = milestones.find(m => m.id === milestoneId);
     if (!milestone) throw new NotFoundError('Milestone');
 
     milestone.completed = Boolean(completed);
-    await roadmap.save();
+    const updated = await updateRoadmap(roadmapId, { milestones });
 
-    res.json({ success: true, data: roadmap });
+    res.json({ success: true, data: updated });
   } catch (err) {
     next(err);
   }

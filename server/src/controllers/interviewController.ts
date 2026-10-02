@@ -1,8 +1,13 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
-import { InterviewSession } from '../models/InterviewSession';
-import { Resume } from '../models/Resume';
-import { JobDescription } from '../models/JobDescription';
+import {
+  createInterviewSession,
+  findInterviewSessionById,
+  listInterviewSessions,
+  updateInterviewSession,
+} from '../repositories/interviewSessionRepository';
+import { findResumeById } from '../repositories/resumeRepository';
+import { findJobDescriptionById } from '../repositories/jobDescriptionRepository';
 import { getAIProvider } from '../integrations/ai';
 import { NotFoundError } from '../middleware/errorHandler';
 import { v4 as uuidv4 } from 'uuid';
@@ -42,8 +47,8 @@ export async function generateInterviewQuestions(
     const { resumeId, jobDescriptionId, title } = req.body;
 
     const [resume, jobDesc] = await Promise.all([
-      resumeId ? Resume.findOne({ _id: resumeId, userId: req.userId, isDeleted: false }) : null,
-      jobDescriptionId ? JobDescription.findOne({ _id: jobDescriptionId, userId: req.userId, isDeleted: false }) : null,
+      resumeId ? findResumeById(resumeId, req.userId!) : null,
+      jobDescriptionId ? findJobDescriptionById(jobDescriptionId, req.userId!) : null,
     ]);
 
     const resumeText = resume?.extractedText || '';
@@ -76,8 +81,8 @@ export async function generateInterviewQuestions(
       throw err;
     }
 
-    const session = await InterviewSession.create({
-      userId: req.userId,
+    const session = await createInterviewSession({
+      userId: req.userId!,
       resumeId: resumeId || undefined,
       jobDescriptionId: jobDescriptionId || undefined,
       title: `Interview Prep - ${role}`,
@@ -101,11 +106,12 @@ export async function getInterviewSessions(
   req: AuthRequest, res: Response, next: NextFunction
 ): Promise<void> {
   try {
-    const sessions = await InterviewSession.find({ userId: req.userId })
-      .sort({ createdAt: -1 })
-      .limit(20)
-      .select('-questions.userAnswer -questions.aiFeedback');
-    res.json({ success: true, data: sessions });
+    const sessions = await listInterviewSessions(req.userId!, 20);
+    const stripped = sessions.map(s => ({
+      ...s,
+      questions: (s.questions as any[]).map(({ userAnswer: _ua, aiFeedback: _af, ...q }) => q),
+    }));
+    res.json({ success: true, data: stripped });
   } catch (err) {
     next(err);
   }
@@ -115,10 +121,7 @@ export async function getInterviewSession(
   req: AuthRequest, res: Response, next: NextFunction
 ): Promise<void> {
   try {
-    const session = await InterviewSession.findOne({
-      _id: req.params.id,
-      userId: req.userId,
-    });
+    const session = await findInterviewSessionById(req.params.id as string, req.userId!);
     if (!session) throw new NotFoundError('Interview session');
     res.json({ success: true, data: session });
   } catch (err) {
@@ -131,18 +134,15 @@ export async function submitAnswer(
 ): Promise<void> {
   try {
     const { questionId, answer } = req.body;
-    const session = await InterviewSession.findOne({
-      _id: req.params.id,
-      userId: req.userId,
-    });
+    const session = await findInterviewSessionById(req.params.id as string, req.userId!);
     if (!session) throw new NotFoundError('Interview session');
 
-    const question = session.questions.find((q: any) => q.id === questionId);
+    const questions = session.questions as any[];
+    const question = questions.find((q: any) => q.id === questionId);
     if (!question) throw new NotFoundError('Question');
 
     question.userAnswer = String(answer).slice(0, 5000);
 
-    // Generate AI feedback
     const provider = getAIProvider();
     const feedbackPrompt = `Rate this interview answer for: "${question.question}"
 
@@ -159,7 +159,7 @@ Provide brief constructive feedback on: content quality, STAR structure (if beha
       question.aiFeedback = 'Feedback unavailable at this time.';
     }
 
-    await session.save();
+    await updateInterviewSession(req.params.id as string, req.userId!, { questions });
     res.json({ success: true, data: { feedback: question.aiFeedback } });
   } catch (err) {
     next(err);

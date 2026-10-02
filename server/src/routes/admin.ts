@@ -2,8 +2,8 @@ import { Router } from 'express';
 import { authenticate, requireAdmin } from '../middleware/auth';
 import { listUsers, setUserRole, countActiveUsers } from '../repositories/userRepository';
 import { countActiveResumes } from '../repositories/resumeRepository';
-import { ResumeAnalysis } from '../models/ResumeAnalysis';
-import { Application } from '../models/Application';
+import { countAnalyses, aggregateAiUsage } from '../repositories/resumeAnalysisRepository';
+import { countActiveApplications } from '../repositories/applicationRepository';
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { UserRole } from '@prisma/client';
@@ -32,15 +32,11 @@ router.get('/stats', async (_req: AuthRequest, res: Response, next: NextFunction
   try {
     const totalUsers = await countActiveUsers();
 
-    const [totalResumes, totalAnalyses, totalApplications] = await Promise.all([
+    const [totalResumes, totalAnalyses, totalApplications, aiUsage] = await Promise.all([
       countActiveResumes(),
-      ResumeAnalysis.countDocuments(),
-      Application.countDocuments({ isDeleted: false }),
-    ]);
-
-    const recentAnalyses = await ResumeAnalysis.aggregate([
-      { $match: { status: 'completed' } },
-      { $group: { _id: null, totalTokens: { $sum: '$tokensUsed' }, totalCost: { $sum: '$costEstimate' } } },
+      countAnalyses(),
+      countActiveApplications(),
+      aggregateAiUsage(),
     ]);
 
     res.json({
@@ -50,7 +46,7 @@ router.get('/stats', async (_req: AuthRequest, res: Response, next: NextFunction
         totalResumes,
         totalAnalyses,
         totalApplications,
-        aiUsage: recentAnalyses[0] || { totalTokens: 0, totalCost: 0 },
+        aiUsage,
       },
     });
   } catch (err) { next(err); }

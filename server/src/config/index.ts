@@ -19,10 +19,6 @@ export const config = {
   port: parseInt(optional('PORT', '3001'), 10),
   clientUrl: optional('CLIENT_URL', 'http://localhost:5173'),
 
-  db: {
-    uri: optional('MONGODB_URI', 'mongodb://localhost:27017/resumeiq'),
-  },
-
   jwt: {
     accessSecret: optional('JWT_ACCESS_SECRET', 'dev-access-secret-change-in-production'),
     refreshSecret: optional('JWT_REFRESH_SECRET', 'dev-refresh-secret-change-in-production'),

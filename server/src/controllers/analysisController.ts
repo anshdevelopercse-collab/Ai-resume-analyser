@@ -1,12 +1,12 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { incrementUsage } from '../repositories/userRepository';
-import { createAnalysis, getAnalysis, getUserAnalyses } from '../services/analysisService';
+import { createAnalysisJob, getAnalysis, getUserAnalyses } from '../services/analysisService';
 export async function startAnalysis(
   req: AuthRequest, res: Response, next: NextFunction
 ): Promise<void> {
   try {
-    const analysis = await createAnalysis(req.userId!, req.params.resumeId as string);
+    const analysis = await createAnalysisJob(req.userId!, req.params.resumeId as string);
 
     await incrementUsage(req.userId!, 'usageAiAnalyses');
 

@@ -1,7 +1,13 @@
 import { getAIProvider } from '../integrations/ai';
-import { JobMatch } from '../models/JobMatch';
-import { Resume } from '../models/Resume';
-import { JobDescription } from '../models/JobDescription';
+import {
+  createJobMatch,
+  findJobMatchByIdempotencyKey,
+  findJobMatchById,
+  updateJobMatch,
+  listJobMatches,
+} from '../repositories/jobMatchRepository';
+import { findResumeById } from '../repositories/resumeRepository';
+import { findJobDescriptionById } from '../repositories/jobDescriptionRepository';
 import { NotFoundError } from '../middleware/errorHandler';
 import { logger } from '../utils/logger';
 
@@ -30,28 +36,23 @@ Return JSON with this exact schema:
 }`;
 }
 
-export async function createJobMatch(
+export async function createJobMatchJob(
   userId: string,
   resumeId: string,
-  jobDescriptionId: string
+  jobDescriptionId: string,
 ) {
   const [resume, jobDesc] = await Promise.all([
-    Resume.findOne({ _id: resumeId, userId, isDeleted: false }),
-    JobDescription.findOne({ _id: jobDescriptionId, userId, isDeleted: false }),
+    findResumeById(resumeId, userId),
+    findJobDescriptionById(jobDescriptionId, userId),
   ]);
-
   if (!resume) throw new NotFoundError('Resume');
   if (!jobDesc) throw new NotFoundError('Job description');
 
   const idempotencyKey = `match:${userId}:${resumeId}:${jobDescriptionId}`;
-
-  const existing = await JobMatch.findOne({
-    idempotencyKey,
-    status: { $in: ['completed', 'processing'] },
-  });
+  const existing = await findJobMatchByIdempotencyKey(idempotencyKey, ['completed', 'processing']);
   if (existing) return existing;
 
-  const match = await JobMatch.create({
+  const match = await createJobMatch({
     userId,
     resumeId,
     jobDescriptionId,
@@ -61,19 +62,14 @@ export async function createJobMatch(
     aiModel: 'pending',
   });
 
-  processMatch(match._id.toString(), resume.extractedText, jobDesc.description).catch(err => {
-    logger.error('Job match processing failed', { error: err, matchId: match._id });
+  processMatch(match.id, resume.extractedText, jobDesc.description).catch(err => {
+    logger.error('Job match processing failed', { error: err, matchId: match.id });
   });
 
   return match;
 }
 
 async function processMatch(matchId: string, resumeText: string, jobDescription: string): Promise<void> {
-  const match = await JobMatch.findById(matchId);
-  if (!match) return;
-
-  const start = Date.now();
-
   try {
     const provider = getAIProvider();
     const result = await provider.complete([
@@ -85,39 +81,29 @@ async function processMatch(matchId: string, resumeText: string, jobDescription:
     parsed.matchScore = Math.min(100, Math.max(0, Math.round(parsed.matchScore)));
     parsed.keywordCoverage = Math.min(100, Math.max(0, Math.round(parsed.keywordCoverage)));
 
-    match.status = 'completed';
-    match.result = parsed;
-    match.provider = result.provider;
-    match.aiModel = result.model;
-    match.tokensUsed = result.tokensUsed;
-    match.costEstimate = result.costEstimate;
-    await match.save();
+    await updateJobMatch(matchId, {
+      status: 'completed',
+      result: parsed,
+      provider: result.provider,
+      aiModel: result.model,
+      tokensUsed: result.tokensUsed,
+      costEstimate: result.costEstimate,
+    });
   } catch (err) {
-    match.status = 'failed';
-    match.error = (err as Error).message;
-    await match.save();
+    await updateJobMatch(matchId, {
+      status: 'failed',
+      error: (err as Error).message,
+    });
   }
 }
 
 export async function getJobMatch(userId: string, matchId: string) {
-  const match = await JobMatch.findOne({ _id: matchId, userId })
-    .populate('resumeId', 'originalName label')
-    .populate('jobDescriptionId', 'title company');
+  const match = await findJobMatchById(matchId, userId);
   if (!match) throw new NotFoundError('Job match');
   return match;
 }
 
 export async function getUserJobMatches(userId: string, page = 1, limit = 10) {
-  const skip = (page - 1) * limit;
-  const [matches, total] = await Promise.all([
-    JobMatch.find({ userId })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate('resumeId', 'originalName label')
-      .populate('jobDescriptionId', 'title company'),
-    JobMatch.countDocuments({ userId }),
-  ]);
-
+  const { matches, total } = await listJobMatches(userId, page, limit);
   return { matches, total, page, limit, totalPages: Math.ceil(total / limit) };
 }

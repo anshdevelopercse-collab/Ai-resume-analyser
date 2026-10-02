@@ -1,0 +1,37 @@
+import { prisma } from '../lib/prisma';
+import { RoadmapStatus } from '@prisma/client';
+
+export async function createRoadmap(data: {
+  userId: string;
+  targetRole: string;
+  resumeId?: string;
+  jobDescriptionId?: string;
+  status: RoadmapStatus;
+}) {
+  return prisma.roadmap.create({ data });
+}
+
+export async function findRoadmapById(id: string, userId: string) {
+  return prisma.roadmap.findFirst({ where: { id, userId } });
+}
+
+export async function updateRoadmap(
+  id: string,
+  data: Partial<{
+    status: RoadmapStatus;
+    provider: string;
+    summary: string;
+    skillGaps: any;
+    milestones: any;
+  }>,
+) {
+  return prisma.roadmap.update({ where: { id }, data });
+}
+
+export async function listRoadmaps(userId: string, limit: number) {
+  return prisma.roadmap.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+  });
+}

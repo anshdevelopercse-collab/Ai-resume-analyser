@@ -1,15 +1,21 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { incrementUsage } from '../repositories/userRepository';
-import { JobDescription } from '../models/JobDescription';
-import { createJobMatch, getJobMatch, getUserJobMatches } from '../services/jobMatchService';
+import {
+  createJobDescription as createJD,
+  findJobDescriptionById,
+  listJobDescriptions,
+  updateJobDescription as updateJD,
+  softDeleteJobDescription,
+} from '../repositories/jobDescriptionRepository';
+import { createJobMatchJob, getJobMatch, getUserJobMatches } from '../services/jobMatchService';
 import { NotFoundError } from '../middleware/errorHandler';
 
 export async function createJobDescription(
   req: AuthRequest, res: Response, next: NextFunction
 ): Promise<void> {
   try {
-    const jd = await JobDescription.create({ ...req.body, userId: req.userId });
+    const jd = await createJD({ ...req.body, userId: req.userId! });
     res.status(201).json({ success: true, data: jd });
   } catch (err) {
     next(err);
@@ -22,15 +28,8 @@ export async function getJobDescriptions(
   try {
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
-    const skip = (page - 1) * limit;
 
-    const [jds, total] = await Promise.all([
-      JobDescription.find({ userId: req.userId, isDeleted: false })
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit),
-      JobDescription.countDocuments({ userId: req.userId, isDeleted: false }),
-    ]);
+    const { jds, total } = await listJobDescriptions(req.userId!, page, limit);
 
     res.json({
       success: true,
@@ -46,11 +45,7 @@ export async function getJobDescription(
   req: AuthRequest, res: Response, next: NextFunction
 ): Promise<void> {
   try {
-    const jd = await JobDescription.findOne({
-      _id: req.params.id,
-      userId: req.userId,
-      isDeleted: false,
-    });
+    const jd = await findJobDescriptionById(req.params.id as string, req.userId!);
     if (!jd) throw new NotFoundError('Job description');
     res.json({ success: true, data: jd });
   } catch (err) {
@@ -62,11 +57,7 @@ export async function updateJobDescription(
   req: AuthRequest, res: Response, next: NextFunction
 ): Promise<void> {
   try {
-    const jd = await JobDescription.findOneAndUpdate(
-      { _id: req.params.id, userId: req.userId, isDeleted: false },
-      req.body,
-      { new: true, runValidators: true }
-    );
+    const jd = await updateJD(req.params.id as string, req.userId!, req.body);
     if (!jd) throw new NotFoundError('Job description');
     res.json({ success: true, data: jd });
   } catch (err) {
@@ -78,12 +69,8 @@ export async function deleteJobDescription(
   req: AuthRequest, res: Response, next: NextFunction
 ): Promise<void> {
   try {
-    const jd = await JobDescription.findOneAndUpdate(
-      { _id: req.params.id, userId: req.userId, isDeleted: false },
-      { isDeleted: true },
-      { new: true }
-    );
-    if (!jd) throw new NotFoundError('Job description');
+    const deleted = await softDeleteJobDescription(req.params.id as string, req.userId!);
+    if (!deleted) throw new NotFoundError('Job description');
     res.json({ success: true, message: 'Job description deleted' });
   } catch (err) {
     next(err);
@@ -95,7 +82,7 @@ export async function startJobMatch(
 ): Promise<void> {
   try {
     const { resumeId } = req.body;
-    const match = await createJobMatch(req.userId!, resumeId, req.params.jobId as string);
+    const match = await createJobMatchJob(req.userId!, resumeId, req.params.jobId as string);
 
     await incrementUsage(req.userId!, 'usageJobMatches');
 

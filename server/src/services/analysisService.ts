@@ -1,7 +1,13 @@
 import { getAIProvider } from '../integrations/ai';
-import { ResumeAnalysis } from '../models/ResumeAnalysis';
+import {
+  createAnalysis,
+  findAnalysisByIdempotencyKey,
+  findAnalysisById,
+  updateAnalysis,
+  listAnalyses,
+} from '../repositories/resumeAnalysisRepository';
 import { findResumeForAnalysis } from '../repositories/resumeRepository';
-import { AppError, NotFoundError } from '../middleware/errorHandler';
+import { NotFoundError } from '../middleware/errorHandler';
 import { logger } from '../utils/logger';
 import type { ResumeAnalysisResult } from '@resumeiq/shared';
 
@@ -33,24 +39,16 @@ Return JSON with this exact schema:
 }`;
 }
 
-export async function createAnalysis(
-  userId: string,
-  resumeId: string
-): Promise<typeof ResumeAnalysis.prototype> {
-  // IDOR check + extractedText from PostgreSQL
+export async function createAnalysisJob(userId: string, resumeId: string) {
   const resume = await findResumeForAnalysis(resumeId, userId);
   if (!resume) throw new NotFoundError('Resume');
 
   const idempotencyKey = `analysis:${userId}:${resumeId}`;
 
-  // Return existing if already completed or processing
-  const existing = await ResumeAnalysis.findOne({
-    idempotencyKey,
-    status: { $in: ['completed', 'processing'] },
-  });
+  const existing = await findAnalysisByIdempotencyKey(idempotencyKey, ['completed', 'processing']);
   if (existing) return existing;
 
-  const analysis = await ResumeAnalysis.create({
+  const analysis = await createAnalysis({
     userId,
     resumeId,
     status: 'processing',
@@ -59,29 +57,20 @@ export async function createAnalysis(
     aiModel: 'pending',
   });
 
-  // Process async (in production this would be a queue job)
-  processAnalysis(analysis._id.toString(), resume.extractedText).catch(err => {
-    logger.error('Analysis processing failed', { error: err, analysisId: analysis._id });
+  processAnalysis(analysis.id, resume.extractedText).catch(err => {
+    logger.error('Analysis processing failed', { error: err, analysisId: analysis.id });
   });
 
   return analysis;
 }
 
 async function processAnalysis(analysisId: string, resumeText: string): Promise<void> {
-  const analysis = await ResumeAnalysis.findById(analysisId);
-  if (!analysis) return;
-
   const start = Date.now();
-
   try {
     const provider = getAIProvider();
-
     const result = await provider.complete([
       { role: 'user', content: buildAnalysisPrompt(resumeText) },
-    ], {
-      systemPrompt: ANALYSIS_PROMPT_SYSTEM,
-      maxTokens: 4000,
-    });
+    ], { systemPrompt: ANALYSIS_PROMPT_SYSTEM, maxTokens: 4000 });
 
     let parsed: ResumeAnalysisResult;
     try {
@@ -89,23 +78,25 @@ async function processAnalysis(analysisId: string, resumeText: string): Promise<
       parsed = JSON.parse(jsonText);
       validateAnalysisResult(parsed);
     } catch (parseErr) {
-      logger.error('AI response parse error', { error: parseErr, content: result.content.slice(200) });
+      logger.error('AI response parse error', { error: parseErr, content: result.content.slice(0, 200) });
       throw new Error('AI returned malformed response');
     }
 
-    analysis.status = 'completed';
-    analysis.result = parsed;
-    analysis.provider = result.provider;
-    analysis.aiModel = result.model;
-    analysis.tokensUsed = result.tokensUsed;
-    analysis.costEstimate = result.costEstimate;
-    analysis.processingMs = Date.now() - start;
-    await analysis.save();
+    await updateAnalysis(analysisId, {
+      status: 'completed',
+      result: parsed,
+      provider: result.provider,
+      aiModel: result.model,
+      tokensUsed: result.tokensUsed,
+      costEstimate: result.costEstimate,
+      processingMs: Date.now() - start,
+    });
   } catch (err) {
-    analysis.status = 'failed';
-    analysis.error = (err as Error).message;
-    analysis.processingMs = Date.now() - start;
-    await analysis.save();
+    await updateAnalysis(analysisId, {
+      status: 'failed',
+      error: (err as Error).message,
+      processingMs: Date.now() - start,
+    });
   }
 }
 
@@ -128,21 +119,12 @@ function validateAnalysisResult(result: any): void {
 }
 
 export async function getAnalysis(userId: string, analysisId: string) {
-  const analysis = await ResumeAnalysis.findOne({ _id: analysisId, userId });
+  const analysis = await findAnalysisById(analysisId, userId);
   if (!analysis) throw new NotFoundError('Analysis');
   return analysis;
 }
 
 export async function getUserAnalyses(userId: string, page = 1, limit = 10) {
-  const skip = (page - 1) * limit;
-  // Note: resumeId is now a PostgreSQL UUID string — cross-DB populate is not possible
-  const [analyses, total] = await Promise.all([
-    ResumeAnalysis.find({ userId })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit),
-    ResumeAnalysis.countDocuments({ userId }),
-  ]);
-
+  const { analyses, total } = await listAnalyses(userId, page, limit);
   return { analyses, total, page, limit, totalPages: Math.ceil(total / limit) };
 }
