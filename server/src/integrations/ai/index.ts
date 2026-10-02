@@ -1,6 +1,7 @@
 import { config } from '../../config';
 import { AnthropicProvider } from './anthropicProvider';
 import { OpenAIProvider } from './openaiProvider';
+import { GeminiProvider } from './geminiProvider';
 import type { AIProvider } from './types';
 
 export { type AIProvider, type AICompletionResult, type AIMessage, type AICompletionOptions } from './types';
@@ -22,6 +23,14 @@ export function getAIProvider(): AIProvider {
 
   if (requestedProvider === 'openai' || (requestedProvider === 'auto' && config.ai.openaiApiKey)) {
     const p = new OpenAIProvider();
+    if (p.isAvailable()) {
+      _provider = p;
+      return _provider;
+    }
+  }
+
+  if (requestedProvider === 'gemini' || (requestedProvider === 'auto' && config.ai.geminiApiKey)) {
+    const p = new GeminiProvider();
     if (p.isAvailable()) {
       _provider = p;
       return _provider;

@@ -36,6 +36,8 @@ export const config = {
     anthropicModel: optional('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001'),
     openaiApiKey: optional('OPENAI_API_KEY'),
     openaiModel: optional('OPENAI_MODEL', 'gpt-4o-mini'),
+    geminiApiKey: optional('GEMINI_API_KEY'),
+    geminiModel: optional('GEMINI_MODEL', 'gemini-2.0-flash'),
     maxTokens: parseInt(optional('AI_MAX_TOKENS', '4096'), 10),
     timeout: parseInt(optional('AI_TIMEOUT_MS', '30000'), 10),
   },
