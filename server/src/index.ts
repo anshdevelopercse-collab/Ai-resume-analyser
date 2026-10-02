@@ -1,3 +1,5 @@
+import dns from "node:dns";
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
 import { connectDatabase } from './config/database';
 import { config } from './config';
 import { logger } from './utils/logger';
