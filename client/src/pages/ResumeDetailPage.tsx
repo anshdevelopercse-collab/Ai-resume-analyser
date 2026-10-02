@@ -127,7 +127,9 @@ export default function ResumeDetailPage() {
     queryKey: ['analyses', id],
     queryFn: async () => {
       const { data } = await api.get(`/resumes/analyses/all?limit=5`);
-      return data.data?.filter((a: any) => a.resumeId?._id === id || a.resumeId === id);
+      return data.data?.filter((a: any) =>
+      a.resumeId === id || a.resumeId?.id === id || a.resumeId?._id === id
+    );
     },
   });
 

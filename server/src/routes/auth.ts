@@ -6,7 +6,6 @@ import {
   register, login, logout, refresh,
   verifyEmailHandler, forgotPassword, resetPasswordHandler,
   getMe, updateProfile, changePasswordHandler, deleteAccount,
-  autoLogin,
 } from '../controllers/authController';
 import {
   registerSchema, loginSchema, forgotPasswordSchema,
@@ -23,9 +22,6 @@ const authLimiter = rateLimit({
 });
 
 const router = Router();
-
-// Auto-login endpoint — only active when DISABLE_AUTH=true
-router.get('/auto-login', autoLogin);
 
 router.post('/register', authLimiter, validate(registerSchema), register);
 router.post('/login', authLimiter, validate(loginSchema), login);

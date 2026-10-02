@@ -1,26 +1,16 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
+import { incrementUsage } from '../repositories/userRepository';
 import { createAnalysis, getAnalysis, getUserAnalyses } from '../services/analysisService';
-import { isDemoMode } from '../integrations/ai';
-
 export async function startAnalysis(
   req: AuthRequest, res: Response, next: NextFunction
 ): Promise<void> {
   try {
     const analysis = await createAnalysis(req.userId!, req.params.resumeId as string);
 
-    await req.user?.updateOne({ $inc: { 'usage.aiAnalyses': 1 } });
+    await incrementUsage(req.userId!, 'usageAiAnalyses');
 
-    res.status(202).json({
-      success: true,
-      data: analysis,
-      meta: {
-        demoMode: isDemoMode(),
-        message: isDemoMode()
-          ? 'Running in demo mode. Configure ANTHROPIC_API_KEY or OPENAI_API_KEY for real AI analysis.'
-          : undefined,
-      },
-    });
+    res.status(202).json({ success: true, data: analysis });
   } catch (err) {
     next(err);
   }

@@ -1,37 +1,29 @@
 import dns from "node:dns";
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 import { connectDatabase } from './config/database';
+import { connectPrisma, disconnectPrisma, cleanupExpiredRefreshTokens } from './lib/prisma';
 import { config } from './config';
 import { logger } from './utils/logger';
 import app from './app';
 
-async function seedSampleUser(): Promise<void> {
-  const { User } = await import('./models/User');
-  const { hashPassword } = await import('./services/authService');
-  const existing = await User.findOne({ email: 'demo@resumeiq.local' });
-  if (existing) return;
-  const password = await hashPassword('Demo1234!');
-  await User.create({
-    email: 'demo@resumeiq.local',
-    password,
-    firstName: 'Demo',
-    lastName: 'Admin',
-    role: 'admin',
-    emailVerified: true,
-  });
-  logger.info('Sample user ready — email: demo@resumeiq.local  password: Demo1234!');
-}
 
 async function start(): Promise<void> {
   try {
-    await connectDatabase();
-
-    // Always seed the sample account so there is a ready-to-use login
-    await seedSampleUser();
-
-    if (config.disableAuth) {
-      logger.warn('DISABLE_AUTH=true — authentication bypassed, demo auto-login active');
+    // Connect MongoDB (existing services still use Mongoose).
+    // Non-fatal in development: auth is now fully on PostgreSQL.
+    // MongoDB-backed domains will return 503 until Mongo is available.
+    try {
+      await connectDatabase();
+    } catch (err) {
+      if (config.isProduction) throw err;
+      logger.warn('MongoDB unavailable — non-auth routes will be degraded', { error: (err as Error).message });
     }
+
+    // Connect PostgreSQL (new Prisma layer)
+    await connectPrisma();
+
+    // Clean up any expired refresh tokens from previous runs
+    await cleanupExpiredRefreshTokens();
 
     const server = app.listen(config.port, () => {
       logger.info(`ResumeIQ server started`, {
@@ -47,6 +39,7 @@ async function start(): Promise<void> {
       server.close(async () => {
         const { disconnectDatabase } = await import('./config/database');
         await disconnectDatabase();
+        await disconnectPrisma();
         logger.info('Server shut down');
         process.exit(0);
       });

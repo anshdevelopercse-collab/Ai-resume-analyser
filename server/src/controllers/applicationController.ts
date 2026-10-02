@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
+import { incrementUsage } from '../repositories/userRepository';
 import { Application } from '../models/Application';
 import { NotFoundError } from '../middleware/errorHandler';
 import { APPLICATION_STATUS } from '@resumeiq/shared';
@@ -9,7 +10,7 @@ export async function createApplication(
 ): Promise<void> {
   try {
     const app = await Application.create({ ...req.body, userId: req.userId });
-    await req.user?.updateOne({ $inc: { 'usage.applications': 1 } });
+    await incrementUsage(req.userId!, 'usageApplications');
     res.status(201).json({ success: true, data: app });
   } catch (err) {
     next(err);
@@ -117,7 +118,7 @@ export async function getApplicationStats(
 ): Promise<void> {
   try {
     const stats = await Application.aggregate([
-      { $match: { userId: req.user!._id, isDeleted: false } },
+      { $match: { userId: req.userId!, isDeleted: false } },
       { $group: { _id: '$status', count: { $sum: 1 } } },
     ]);
 

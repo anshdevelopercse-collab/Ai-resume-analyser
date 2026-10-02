@@ -1,7 +1,7 @@
-import { getAIProvider, isDemoMode } from '../integrations/ai';
+import { getAIProvider } from '../integrations/ai';
 import { ResumeAnalysis } from '../models/ResumeAnalysis';
-import { Resume } from '../models/Resume';
-import { AppError, ForbiddenError, NotFoundError } from '../middleware/errorHandler';
+import { findResumeForAnalysis } from '../repositories/resumeRepository';
+import { AppError, NotFoundError } from '../middleware/errorHandler';
 import { logger } from '../utils/logger';
 import type { ResumeAnalysisResult } from '@resumeiq/shared';
 
@@ -37,12 +37,13 @@ export async function createAnalysis(
   userId: string,
   resumeId: string
 ): Promise<typeof ResumeAnalysis.prototype> {
-  const resume = await Resume.findOne({ _id: resumeId, userId, isDeleted: false });
+  // IDOR check + extractedText from PostgreSQL
+  const resume = await findResumeForAnalysis(resumeId, userId);
   if (!resume) throw new NotFoundError('Resume');
 
   const idempotencyKey = `analysis:${userId}:${resumeId}`;
 
-  // Return existing if already completed
+  // Return existing if already completed or processing
   const existing = await ResumeAnalysis.findOne({
     idempotencyKey,
     status: { $in: ['completed', 'processing'] },
@@ -58,7 +59,7 @@ export async function createAnalysis(
     aiModel: 'pending',
   });
 
-  // Process async (in real app would use a queue)
+  // Process async (in production this would be a queue job)
   processAnalysis(analysis._id.toString(), resume.extractedText).catch(err => {
     logger.error('Analysis processing failed', { error: err, analysisId: analysis._id });
   });
@@ -119,7 +120,6 @@ function validateAnalysisResult(result: any): void {
   if (typeof result.overallScore !== 'number') throw new Error('Invalid analysis: missing overallScore');
   if (!Array.isArray(result.sections)) throw new Error('Invalid analysis: missing sections');
   if (!result.skills) throw new Error('Invalid analysis: missing skills');
-  // Clamp scores to valid range
   result.overallScore = Math.min(100, Math.max(0, Math.round(result.overallScore)));
   result.atsScore = Math.min(100, Math.max(0, Math.round(result.atsScore ?? 0)));
   result.formattingScore = Math.min(100, Math.max(0, Math.round(result.formattingScore ?? 0)));
@@ -135,12 +135,12 @@ export async function getAnalysis(userId: string, analysisId: string) {
 
 export async function getUserAnalyses(userId: string, page = 1, limit = 10) {
   const skip = (page - 1) * limit;
+  // Note: resumeId is now a PostgreSQL UUID string — cross-DB populate is not possible
   const [analyses, total] = await Promise.all([
     ResumeAnalysis.find({ userId })
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit)
-      .populate('resumeId', 'originalName label createdAt'),
+      .limit(limit),
     ResumeAnalysis.countDocuments({ userId }),
   ]);
 

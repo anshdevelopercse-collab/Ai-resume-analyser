@@ -1,7 +1,7 @@
 import { config } from '../../config';
 import { AnthropicProvider } from './anthropicProvider';
 import { OpenAIProvider } from './openaiProvider';
-import { DemoProvider } from './demoProvider';
+import { GeminiProvider } from './geminiProvider';
 import type { AIProvider } from './types';
 
 export { type AIProvider, type AICompletionResult, type AIMessage, type AICompletionOptions } from './types';
@@ -29,14 +29,19 @@ export function getAIProvider(): AIProvider {
     }
   }
 
-  _provider = new DemoProvider();
-  return _provider;
+  if (requestedProvider === 'gemini' || (requestedProvider === 'auto' && config.ai.geminiApiKey)) {
+    const p = new GeminiProvider();
+    if (p.isAvailable()) {
+      _provider = p;
+      return _provider;
+    }
+  }
+
+  throw new Error(
+    'No AI provider configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY in your environment.'
+  );
 }
 
 export function resetProvider(): void {
   _provider = null;
-}
-
-export function isDemoMode(): boolean {
-  return getAIProvider().name === 'demo';
 }

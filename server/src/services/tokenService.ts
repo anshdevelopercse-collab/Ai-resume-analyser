@@ -2,7 +2,15 @@ import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import { config } from '../config';
-import { RefreshToken } from '../models/RefreshToken';
+import {
+  createRefreshToken,
+  findRefreshToken,
+  claimTokenAtomic,
+  deleteRefreshToken,
+  deleteTokenFamily,
+  deleteAllUserTokens,
+} from '../repositories/refreshTokenRepository';
+import { findUserById } from '../repositories/userRepository';
 
 export interface TokenPair {
   accessToken: string;
@@ -14,7 +22,7 @@ export function generateAccessToken(userId: string, role: string): string {
   return jwt.sign(
     { userId, role, jti: uuidv4() },
     config.jwt.accessSecret,
-    { expiresIn: config.jwt.accessExpiresIn as any }
+    { expiresIn: config.jwt.accessExpiresIn as any },
   );
 }
 
@@ -23,24 +31,16 @@ export async function generateTokenPair(
   role: string,
   userAgent?: string,
   ipAddress?: string,
-  existingFamily?: string
+  existingFamily?: string,
 ): Promise<TokenPair> {
-  const family = existingFamily || uuidv4();
+  const family = existingFamily ?? uuidv4();
   const tokenValue = crypto.randomBytes(48).toString('hex');
   const accessToken = generateAccessToken(userId, role);
 
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7);
 
-  await RefreshToken.create({
-    userId,
-    token: tokenValue,
-    family,
-    used: false,
-    expiresAt,
-    userAgent: userAgent?.slice(0, 500),
-    ipAddress: ipAddress?.slice(0, 45),
-  });
+  await createRefreshToken({ userId, token: tokenValue, family, expiresAt, userAgent, ipAddress });
 
   return { accessToken, refreshToken: tokenValue, family };
 }
@@ -48,45 +48,42 @@ export async function generateTokenPair(
 export async function rotateRefreshToken(
   tokenValue: string,
   userAgent?: string,
-  ipAddress?: string
+  ipAddress?: string,
 ): Promise<TokenPair | null> {
-  const existing = await RefreshToken.findOne({ token: tokenValue });
-
+  const existing = await findRefreshToken(tokenValue);
   if (!existing) return null;
 
   if (existing.used) {
-    // Potential token reuse attack — invalidate entire family
-    await RefreshToken.deleteMany({ family: existing.family });
+    // Token reuse attack — invalidate entire family
+    await deleteTokenFamily(existing.family);
     return null;
   }
 
   if (existing.expiresAt < new Date()) {
-    await existing.deleteOne();
+    await deleteRefreshToken(tokenValue);
     return null;
   }
 
-  // Mark current token as used
-  existing.used = true;
-  await existing.save();
+  // Atomically claim the token: UPDATE WHERE used=false.
+  // Under concurrent requests with the same token, exactly one wins (count=1).
+  // The loser gets count=0 and is treated as a replay attempt.
+  const claimed = await claimTokenAtomic(existing.id);
+  if (!claimed) {
+    // Another concurrent request already used this token — treat as replay
+    await deleteTokenFamily(existing.family);
+    return null;
+  }
 
-  const user = await import('../models/User').then(m =>
-    m.User.findById(existing.userId)
-  );
+  const user = await findUserById(existing.userId);
   if (!user) return null;
 
-  return generateTokenPair(
-    String(existing.userId),
-    user.role,
-    userAgent,
-    ipAddress,
-    existing.family
-  );
+  return generateTokenPair(user.id, user.role, userAgent, ipAddress, existing.family);
 }
 
 export async function revokeRefreshToken(tokenValue: string): Promise<void> {
-  await RefreshToken.deleteOne({ token: tokenValue });
+  await deleteRefreshToken(tokenValue);
 }
 
 export async function revokeAllUserTokens(userId: string): Promise<void> {
-  await RefreshToken.deleteMany({ userId });
+  await deleteAllUserTokens(userId);
 }

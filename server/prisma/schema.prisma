@@ -1,0 +1,348 @@
+// ResumeIQ — Prisma Schema
+// PostgreSQL provider, versioned migrations only (never `db push` in production)
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────
+
+enum UserRole {
+  user
+  admin
+}
+
+enum UserPlan {
+  free
+  pro
+  enterprise
+}
+
+enum AnalysisStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
+enum SessionStatus {
+  draft
+  active
+  completed
+}
+
+enum RoadmapStatus {
+  processing
+  completed
+  failed
+}
+
+enum ApplicationStatus {
+  wishlist
+  applied
+  phone_screen
+  interview
+  technical
+  offer
+  rejected
+  withdrawn
+  accepted
+}
+
+// ─────────────────────────────────────────────────
+// User
+// ─────────────────────────────────────────────────
+
+model User {
+  id                       String    @id @default(uuid()) @db.Uuid
+  email                    String    @unique @db.VarChar(255)
+  // passwordHash is NEVER included in API responses — use explicit select
+  passwordHash             String    @db.VarChar(255) @map("password_hash")
+  firstName                String?   @db.VarChar(100) @map("first_name")
+  lastName                 String?   @db.VarChar(100) @map("last_name")
+  role                     UserRole  @default(user)
+  plan                     UserPlan  @default(free)
+  emailVerified            Boolean   @default(false) @map("email_verified")
+  // Sensitive tokens — NEVER included in API responses
+  emailVerificationToken   String?   @db.VarChar(255) @map("email_verification_token")
+  emailVerificationExpires DateTime? @map("email_verification_expires")
+  passwordResetToken       String?   @db.VarChar(255) @map("password_reset_token")
+  passwordResetExpires     DateTime? @map("password_reset_expires")
+  avatarUrl                String?   @db.VarChar(2048) @map("avatar_url")
+  isDeleted                Boolean   @default(false) @map("is_deleted")
+  deletedAt                DateTime? @map("deleted_at")
+  usageResumeUploads       Int       @default(0) @map("usage_resume_uploads")
+  usageAiAnalyses          Int       @default(0) @map("usage_ai_analyses")
+  usageJobMatches          Int       @default(0) @map("usage_job_matches")
+  usageApplications        Int       @default(0) @map("usage_applications")
+  usageLastReset           DateTime? @map("usage_last_reset")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
+
+  refreshTokens     RefreshToken[]
+  resumes           Resume[]
+  jobDescriptions   JobDescription[]
+  resumeAnalyses    ResumeAnalysis[]
+  jobMatches        JobMatch[]
+  interviewSessions InterviewSession[]
+  roadmaps          Roadmap[]
+  applications      Application[]
+
+  @@index([isDeleted])
+  @@index([createdAt(sort: Desc)])
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────────
+// RefreshToken
+// TTL replacement: DELETE FROM refresh_tokens WHERE expires_at < NOW()
+// Run at startup in index.ts and periodically via application job.
+// ─────────────────────────────────────────────────
+
+model RefreshToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid @map("user_id")
+  token     String   @unique @db.VarChar(120)
+  family    String   @db.Uuid
+  used      Boolean  @default(false)
+  expiresAt DateTime @map("expires_at")
+  userAgent String?  @db.VarChar(500) @map("user_agent")
+  ipAddress String?  @db.VarChar(45) @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([family])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+// ─────────────────────────────────────────────────
+// Resume
+// storageKey is NEVER included in API responses — use explicit select
+// ─────────────────────────────────────────────────
+
+model Resume {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid @map("user_id")
+  filename      String    @db.VarChar(255)
+  originalName  String    @db.VarChar(255) @map("original_name")
+  mimeType      String    @db.VarChar(100) @map("mime_type")
+  sizeBytes     Int       @map("size_bytes")
+  // storageKey: internal file path — NEVER returned in API responses
+  storageKey    String    @db.VarChar(512) @map("storage_key")
+  extractedText String    @default("") @map("extracted_text")
+  pageCount     Int?      @map("page_count")
+  wordCount     Int?      @map("word_count")
+  isActive      Boolean   @default(true) @map("is_active")
+  isDeleted     Boolean   @default(false) @map("is_deleted")
+  deletedAt     DateTime? @map("deleted_at")
+  label         String?   @db.VarChar(200)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resumeAnalyses    ResumeAnalysis[]
+  jobMatches        JobMatch[]
+  interviewSessions InterviewSession[]
+  roadmaps          Roadmap[]
+  applications      Application[]
+
+  @@index([userId, isDeleted, createdAt(sort: Desc)])
+  @@map("resumes")
+}
+
+// ─────────────────────────────────────────────────
+// ResumeAnalysis
+// result is JSONB — unstructured AI output
+// ─────────────────────────────────────────────────
+
+model ResumeAnalysis {
+  id             String         @id @default(uuid()) @db.Uuid
+  userId         String         @db.Uuid @map("user_id")
+  resumeId       String         @db.Uuid @map("resume_id")
+  status         AnalysisStatus @default(pending)
+  provider       String         @default("demo") @db.VarChar(50)
+  aiModel        String         @default("demo") @db.VarChar(100) @map("ai_model")
+  tokensUsed     Int?           @map("tokens_used")
+  costEstimate   Decimal?       @db.Decimal(10, 6) @map("cost_estimate")
+  processingMs   Int?           @map("processing_ms")
+  result         Json?
+  error          String?
+  idempotencyKey String         @unique @db.VarChar(255) @map("idempotency_key")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resume Resume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+
+  @@index([userId, resumeId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status])
+  @@map("resume_analyses")
+}
+
+// ─────────────────────────────────────────────────
+// JobDescription
+// ─────────────────────────────────────────────────
+
+model JobDescription {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @db.Uuid @map("user_id")
+  title       String    @db.VarChar(200)
+  company     String?   @db.VarChar(200)
+  description String
+  location    String?   @db.VarChar(200)
+  remote      Boolean?
+  salaryMin   Decimal?  @db.Decimal(12, 2) @map("salary_min")
+  salaryMax   Decimal?  @db.Decimal(12, 2) @map("salary_max")
+  currency    String?   @db.VarChar(10)
+  url         String?   @db.VarChar(2048)
+  notes       String?
+  isDeleted   Boolean   @default(false) @map("is_deleted")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobMatches        JobMatch[]
+  interviewSessions InterviewSession[]
+  roadmaps          Roadmap[]
+  applications      Application[]
+
+  @@index([userId, isDeleted, createdAt(sort: Desc)])
+  @@map("job_descriptions")
+}
+
+// ─────────────────────────────────────────────────
+// JobMatch
+// result is JSONB — unstructured AI output
+// ─────────────────────────────────────────────────
+
+model JobMatch {
+  id               String         @id @default(uuid()) @db.Uuid
+  userId           String         @db.Uuid @map("user_id")
+  resumeId         String         @db.Uuid @map("resume_id")
+  jobDescriptionId String         @db.Uuid @map("job_description_id")
+  status           AnalysisStatus @default(pending)
+  result           Json?
+  provider         String?        @db.VarChar(50)
+  aiModel          String?        @db.VarChar(100) @map("ai_model")
+  tokensUsed       Int?           @map("tokens_used")
+  costEstimate     Decimal?       @db.Decimal(10, 6) @map("cost_estimate")
+  error            String?
+  idempotencyKey   String         @unique @db.VarChar(255) @map("idempotency_key")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resume         Resume         @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  jobDescription JobDescription @relation(fields: [jobDescriptionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, resumeId, jobDescriptionId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("job_matches")
+}
+
+// ─────────────────────────────────────────────────
+// InterviewSession
+// questions is JSONB — complex nested array (see SQL_MIGRATION_PLAN.md)
+// ─────────────────────────────────────────────────
+
+model InterviewSession {
+  id               String        @id @default(uuid()) @db.Uuid
+  userId           String        @db.Uuid @map("user_id")
+  resumeId         String?       @db.Uuid @map("resume_id")
+  jobDescriptionId String?       @db.Uuid @map("job_description_id")
+  title            String        @db.VarChar(200)
+  questions        Json          @default("[]")
+  status           SessionStatus @default(draft)
+  provider         String?       @db.VarChar(50)
+  aiModel          String?       @db.VarChar(100) @map("ai_model")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resume         Resume?         @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+  jobDescription JobDescription? @relation(fields: [jobDescriptionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("interview_sessions")
+}
+
+// ─────────────────────────────────────────────────
+// Roadmap
+// skillGaps and milestones are JSONB arrays
+// ─────────────────────────────────────────────────
+
+model Roadmap {
+  id               String        @id @default(uuid()) @db.Uuid
+  userId           String        @db.Uuid @map("user_id")
+  targetRole       String        @db.VarChar(200) @map("target_role")
+  resumeId         String?       @db.Uuid @map("resume_id")
+  jobDescriptionId String?       @db.Uuid @map("job_description_id")
+  status           RoadmapStatus @default(processing)
+  provider         String?       @db.VarChar(50)
+  summary          String?       @db.VarChar(1000)
+  skillGaps        Json          @default("[]") @map("skill_gaps")
+  milestones       Json          @default("[]")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resume         Resume?         @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+  jobDescription JobDescription? @relation(fields: [jobDescriptionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("roadmaps")
+}
+
+// ─────────────────────────────────────────────────
+// Application
+// interviewDates is JSONB — array of ISO timestamps
+// ─────────────────────────────────────────────────
+
+model Application {
+  id               String            @id @default(uuid()) @db.Uuid
+  userId           String            @db.Uuid @map("user_id")
+  company          String            @db.VarChar(200)
+  role             String            @db.VarChar(200)
+  location         String?           @db.VarChar(200)
+  remote           Boolean?
+  salaryMin        Decimal?          @db.Decimal(12, 2) @map("salary_min")
+  salaryMax        Decimal?          @db.Decimal(12, 2) @map("salary_max")
+  currency         String?           @db.VarChar(10)
+  jobDescriptionId String?           @db.Uuid @map("job_description_id")
+  resumeId         String?           @db.Uuid @map("resume_id")
+  status           ApplicationStatus @default(wishlist)
+  appliedAt        DateTime?         @map("applied_at")
+  deadline         DateTime?
+  nextActionDate   DateTime?         @map("next_action_date")
+  nextAction       String?           @db.VarChar(500) @map("next_action")
+  notes            String?
+  interviewDates   Json              @default("[]") @map("interview_dates")
+  source           String?           @db.VarChar(200)
+  url              String?           @db.VarChar(2048)
+  contactName      String?           @db.VarChar(200) @map("contact_name")
+  contactEmail     String?           @db.VarChar(255) @map("contact_email")
+  isDeleted        Boolean           @default(false) @map("is_deleted")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobDescription JobDescription? @relation(fields: [jobDescriptionId], references: [id], onDelete: SetNull)
+  resume         Resume?         @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isDeleted, status])
+  @@index([userId, isDeleted, createdAt(sort: Desc)])
+  @@map("applications")
+}

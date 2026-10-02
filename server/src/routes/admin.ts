@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { authenticate, requireAdmin } from '../middleware/auth';
-import { User } from '../models/User';
-import { Resume } from '../models/Resume';
+import { listUsers, setUserRole, countActiveUsers } from '../repositories/userRepository';
+import { countActiveResumes } from '../repositories/resumeRepository';
 import { ResumeAnalysis } from '../models/ResumeAnalysis';
 import { Application } from '../models/Application';
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
+import { UserRole } from '@prisma/client';
 
 const router = Router();
 
@@ -16,16 +17,8 @@ router.get('/users', async (req: AuthRequest, res: Response, next: NextFunction)
   try {
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
-    const skip = (page - 1) * limit;
 
-    const [users, total] = await Promise.all([
-      User.find({ isDeleted: false })
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .select('email firstName lastName role plan emailVerified usage createdAt'),
-      User.countDocuments({ isDeleted: false }),
-    ]);
+    const { users, total } = await listUsers(page, limit);
 
     res.json({
       success: true,
@@ -37,9 +30,10 @@ router.get('/users', async (req: AuthRequest, res: Response, next: NextFunction)
 
 router.get('/stats', async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const [totalUsers, totalResumes, totalAnalyses, totalApplications] = await Promise.all([
-      User.countDocuments({ isDeleted: false }),
-      Resume.countDocuments({ isDeleted: false }),
+    const totalUsers = await countActiveUsers();
+
+    const [totalResumes, totalAnalyses, totalApplications] = await Promise.all([
+      countActiveResumes(),
       ResumeAnalysis.countDocuments(),
       Application.countDocuments({ isDeleted: false }),
     ]);
@@ -69,12 +63,8 @@ router.patch('/users/:id/role', async (req: AuthRequest, res: Response, next: Ne
       res.status(422).json({ success: false, error: 'Invalid role' });
       return;
     }
-    const user = await User.findByIdAndUpdate(req.params.id, { role }, { new: true });
-    if (!user) {
-      res.status(404).json({ success: false, error: 'User not found' });
-      return;
-    }
-    res.json({ success: true, data: { id: user._id, role: user.role } });
+    const user = await setUserRole(req.params.id as string, role as UserRole);
+    res.json({ success: true, data: { id: user.id, role: user.role } });
   } catch (err) { next(err); }
 });
 

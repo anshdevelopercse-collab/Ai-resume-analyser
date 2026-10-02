@@ -1,18 +1,18 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
-import { User, IUser } from '../models/User';
+import { findUserById, type PublicUser } from '../repositories/userRepository';
 import { UnauthorizedError, ForbiddenError } from './errorHandler';
 
 export interface AuthRequest extends Request {
-  user?: IUser;
+  user?: PublicUser;
   userId?: string;
 }
 
 export async function authenticate(
   req: AuthRequest,
   _res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const authHeader = req.headers.authorization;
@@ -35,17 +35,13 @@ export async function authenticate(
       throw new UnauthorizedError('Invalid or expired token');
     }
 
-    const user = await User.findOne({
-      _id: payload.userId,
-      isDeleted: false,
-    });
-
+    const user = await findUserById(payload.userId);
     if (!user) {
       throw new UnauthorizedError('User not found');
     }
 
     req.user = user;
-    req.userId = String(user._id);
+    req.userId = user.id;
     next();
   } catch (err) {
     next(err);

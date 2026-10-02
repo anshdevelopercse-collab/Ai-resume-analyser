@@ -158,6 +158,45 @@ export function errorHandler(
     return;
   }
 
+  // Prisma unique constraint violation (P2002)
+  if ((err as any).code === 'P2002') {
+    const fields: string[] = (err as any).meta?.target ?? [];
+    const field = fields[0] ?? 'field';
+    res.status(409).json({
+      success: false,
+      error: `${field} already exists`,
+      requestId,
+    });
+    return;
+  }
+
+  // Prisma record not found (P2025)
+  if ((err as any).code === 'P2025') {
+    res.status(404).json({
+      success: false,
+      error: 'Record not found',
+      requestId,
+    });
+    return;
+  }
+
+  // Prisma connection errors (P1001, P1002)
+  if ((err as any).code === 'P1001' || (err as any).code === 'P1002') {
+    logger.error('PostgreSQL unavailable', {
+      error: err.message,
+      code: (err as any).code,
+      requestId,
+      path: req.path,
+      method: req.method,
+    });
+    res.status(503).json({
+      success: false,
+      error: 'Service temporarily unavailable. Please try again shortly.',
+      requestId,
+    });
+    return;
+  }
+
   logger.error('Unhandled error', {
     error: err.message,
     stack: err.stack,

@@ -4,12 +4,11 @@ import {
   verifyEmail, initiatePasswordReset, resetPassword,
   changePassword,
 } from '../services/authService';
-import { revokeRefreshToken, generateTokenPair } from '../services/tokenService';
+import { revokeRefreshToken, revokeAllUserTokens, generateTokenPair } from '../services/tokenService';
 import { AuthRequest } from '../middleware/auth';
-import { User } from '../models/User';
+import { findUserByEmail, updateUser, softDeleteUser } from '../repositories/userRepository';
 import { config } from '../config';
 import { emailService } from '../integrations/email';
-import { AppError } from '../middleware/errorHandler';
 
 const COOKIE_OPTS = {
   httpOnly: true,
@@ -22,13 +21,13 @@ export async function register(req: Request, res: Response, next: NextFunction):
   try {
     const { user, verificationToken } = await registerUser(req.body);
 
-    await emailService.sendVerificationEmail(user.email, verificationToken, user.firstName);
+    await emailService.sendVerificationEmail(user.email, verificationToken, user.firstName ?? '');
 
     res.status(201).json({
       success: true,
       message: 'Registration successful. Please check your email to verify your account.',
       data: {
-        id: user._id,
+        id: user.id,
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
@@ -54,7 +53,7 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
       data: {
         accessToken: tokens.accessToken,
         user: {
-          id: user._id,
+          id: user.id,
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
@@ -124,9 +123,9 @@ export async function forgotPassword(
     const token = await initiatePasswordReset(email);
 
     if (token) {
-      const user = await User.findOne({ email });
+      const user = await findUserByEmail(email);
       if (user) {
-        await emailService.sendPasswordResetEmail(email, token, user.firstName);
+        await emailService.sendPasswordResetEmail(email, token, user.firstName ?? '');
       }
     }
 
@@ -158,7 +157,7 @@ export async function getMe(req: AuthRequest, res: Response, next: NextFunction)
     res.json({
       success: true,
       data: {
-        id: user._id,
+        id: user.id,
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
@@ -166,7 +165,13 @@ export async function getMe(req: AuthRequest, res: Response, next: NextFunction)
         plan: user.plan,
         emailVerified: user.emailVerified,
         avatarUrl: user.avatarUrl,
-        usage: user.usage,
+        usage: {
+          resumeUploads: user.usageResumeUploads,
+          aiAnalyses: user.usageAiAnalyses,
+          jobMatches: user.usageJobMatches,
+          applications: user.usageApplications,
+          lastReset: user.usageLastReset,
+        },
         createdAt: user.createdAt,
       },
     });
@@ -179,15 +184,16 @@ export async function updateProfile(
   req: AuthRequest, res: Response, next: NextFunction
 ): Promise<void> {
   try {
-    const user = req.user!;
+    const userId = req.userId!;
     const { firstName, lastName, avatarUrl } = req.body;
 
-    if (firstName !== undefined) user.firstName = firstName;
-    if (lastName !== undefined) user.lastName = lastName;
-    if (avatarUrl !== undefined) user.avatarUrl = avatarUrl ?? undefined;
+    const updates: Record<string, unknown> = {};
+    if (firstName !== undefined) updates.firstName = firstName;
+    if (lastName !== undefined) updates.lastName = lastName;
+    if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl ?? null;
 
-    await user.save();
-    res.json({ success: true, data: user });
+    const updated = await updateUser(userId, updates);
+    res.json({ success: true, data: updated });
   } catch (err) {
     next(err);
   }
@@ -205,52 +211,16 @@ export async function changePasswordHandler(
   }
 }
 
-export async function autoLogin(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    if (!config.disableAuth) {
-      res.status(404).json({ success: false, error: 'Not found' });
-      return;
-    }
-
-    const demoUser = await User.findOne({ email: 'demo@resumeiq.local' });
-    if (!demoUser) {
-      res.status(503).json({ success: false, error: 'Demo user not initialized. Restart the server.' });
-      return;
-    }
-
-    const tokens = await generateTokenPair(String(demoUser._id), demoUser.role);
-    res.cookie('refreshToken', tokens.refreshToken, COOKIE_OPTS);
-
-    res.json({
-      success: true,
-      data: {
-        accessToken: tokens.accessToken,
-        user: {
-          id: demoUser._id,
-          email: demoUser.email,
-          firstName: demoUser.firstName,
-          lastName: demoUser.lastName,
-          role: demoUser.role,
-          plan: demoUser.plan,
-          emailVerified: demoUser.emailVerified,
-          avatarUrl: demoUser.avatarUrl,
-        },
-      },
-    });
-  } catch (err) {
-    next(err);
-  }
-}
 
 export async function deleteAccount(
   req: AuthRequest, res: Response, next: NextFunction
 ): Promise<void> {
   try {
-    const user = req.user!;
-    user.isDeleted = true;
-    user.deletedAt = new Date();
-    user.email = `deleted_${Date.now()}_${user.email}`;
-    await user.save();
+    const userId = req.userId!;
+    const scrubEmail = `deleted_${Date.now()}_${req.user!.email}`;
+    await updateUser(userId, { email: scrubEmail });
+    await softDeleteUser(userId);
+    await revokeAllUserTokens(userId);
     res.clearCookie('refreshToken', COOKIE_OPTS);
     res.json({ success: true, message: 'Account deleted' });
   } catch (err) {
