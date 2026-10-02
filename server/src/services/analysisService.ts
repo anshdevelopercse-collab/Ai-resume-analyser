@@ -48,6 +48,22 @@ export async function createAnalysisJob(userId: string, resumeId: string) {
   const existing = await findAnalysisByIdempotencyKey(idempotencyKey, ['completed', 'processing']);
   if (existing) return existing;
 
+  // If a previous attempt failed, reset it and retry rather than hitting a unique key conflict.
+  const failed = await findAnalysisByIdempotencyKey(idempotencyKey, ['failed']);
+  if (failed) {
+    const reset = await updateAnalysis(failed.id, {
+      status: 'processing',
+      result: null,
+      error: null,
+      provider: 'pending',
+      aiModel: 'pending',
+    });
+    processAnalysis(failed.id, resume.extractedText).catch(err => {
+      logger.error('Analysis reprocessing failed', { error: err, analysisId: failed.id });
+    });
+    return reset;
+  }
+
   const analysis = await createAnalysis({
     userId,
     resumeId,

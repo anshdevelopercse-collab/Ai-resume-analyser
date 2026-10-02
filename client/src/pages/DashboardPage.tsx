@@ -184,8 +184,8 @@ export default function DashboardPage() {
               <div className="space-y-2">
                 {resumesData?.data?.map((resume: any) => (
                   <Link
-                    key={resume._id}
-                    to={`/resumes/${resume._id}`}
+                    key={resume.id}
+                    to={`/resumes/${resume.id}`}
                     className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors"
                   >
                     <div className="h-9 w-9 rounded-lg bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center shrink-0">
@@ -226,7 +226,7 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-3">
                 {analysesData?.data?.map((analysis: any) => (
-                  <div key={analysis._id} className="p-3 rounded-lg border">
+                  <div key={analysis.id} className="p-3 rounded-lg border">
                     <div className="flex items-center justify-between mb-2">
                       <div className="text-sm font-medium truncate">
                         {(analysis.resumeId as any)?.label || (analysis.resumeId as any)?.originalName || 'Resume'}

@@ -144,11 +144,11 @@ export default function ResumeDetailPage() {
         ? 'Demo analysis started'
         : 'AI analysis started'
       );
-      // Poll for completion
-      const poll = setInterval(async () => {
+      // Poll every 3s for up to 90s to catch completion or failure
+      const poll = setInterval(() => {
         queryClient.invalidateQueries({ queryKey: ['analyses', id] });
       }, 3000);
-      setTimeout(() => clearInterval(poll), 30000);
+      setTimeout(() => clearInterval(poll), 90000);
     },
     onError: (err) => toast.error(getApiError(err)),
   });
@@ -157,8 +157,9 @@ export default function ResumeDetailPage() {
     return <div className="space-y-4">{[1,2,3].map(i => <Skeleton key={i} className="h-24" />)}</div>;
   }
 
-  const latestAnalysis = analysesData?.find((a: any) => a.status === 'completed');
-  const result = latestAnalysis?.result;
+  const latestAnalysis = analysesData?.[0];
+  const completedAnalysis = analysesData?.find((a: any) => a.status === 'completed');
+  const result = completedAnalysis?.result;
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -180,9 +181,27 @@ export default function ResumeDetailPage() {
           ) : (
             <BarChart2 className="mr-2 h-4 w-4" />
           )}
-          {latestAnalysis ? 'Re-analyze' : 'Analyze Resume'}
+          {completedAnalysis ? 'Re-analyze' : 'Analyze Resume'}
         </Button>
       </div>
+
+      {latestAnalysis?.status === 'failed' && (
+        <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/20 p-4 flex gap-3">
+          <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-red-800 dark:text-red-300">Analysis failed</p>
+            <p className="text-xs text-red-700 dark:text-red-400 mt-1">
+              {latestAnalysis.error || 'The AI analysis could not be completed. Check that an AI API key is configured on the server, then click Re-analyze.'}
+            </p>
+          </div>
+        </div>
+      )}
+      {latestAnalysis?.status === 'processing' && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-950/20 p-4 flex items-center gap-3">
+          <Loader2 className="h-5 w-5 text-blue-600 animate-spin shrink-0" />
+          <p className="text-sm text-blue-700 dark:text-blue-300">AI analysis in progress…</p>
+        </div>
+      )}
 
       <Tabs defaultValue={result ? 'analysis' : 'text'}>
         <TabsList>

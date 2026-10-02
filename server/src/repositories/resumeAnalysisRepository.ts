@@ -29,13 +29,13 @@ export async function updateAnalysis(
   id: string,
   data: Partial<{
     status: AnalysisStatus;
-    result: any;
+    result: any | null;
     provider: string;
     aiModel: string;
-    tokensUsed: number;
-    costEstimate: number;
-    processingMs: number;
-    error: string;
+    tokensUsed: number | null;
+    costEstimate: number | null;
+    processingMs: number | null;
+    error: string | null;
   }>,
 ) {
   return prisma.resumeAnalysis.update({ where: { id }, data });
