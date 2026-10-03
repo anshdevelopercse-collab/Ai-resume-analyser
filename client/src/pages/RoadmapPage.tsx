@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Map, Plus, CheckCircle, Circle, ChevronDown, ChevronUp, AlertCircle, Loader2 } from 'lucide-react';
+import { Map, Plus, CheckCircle, Circle, ChevronDown, ChevronUp, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +30,10 @@ export default function RoadmapPage() {
       const { data } = await api.get('/roadmaps');
       return data.data;
     },
+    refetchInterval: (query) => {
+      const hasProcessing = query.state.data?.some((r: any) => r.status === 'processing');
+      return hasProcessing ? 3000 : false;
+    },
   });
 
   const { data: resumesData } = useQuery({
@@ -55,9 +59,10 @@ export default function RoadmapPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['roadmaps'] });
-      toast.success(data.meta?.demoMode ? 'Demo roadmap generated' : 'Skill roadmap generated');
+      toast.success('Generating skill roadmap… results will appear shortly');
       setShowGenerate(false);
       if (data.data?.id) setExpandedRoadmap(data.data.id);
+      setGenForm({ resumeId: '', jobDescriptionId: '', targetRole: '' });
     },
     onError: (err) => toast.error(getApiError(err)),
   });
@@ -175,23 +180,36 @@ export default function RoadmapPage() {
                 <CardHeader className="pb-3">
                   <button
                     className="w-full flex items-center gap-3 text-left"
-                    onClick={() => setExpandedRoadmap(isExpanded ? null : roadmap.id)}
+                    onClick={() => roadmap.status === 'completed' && setExpandedRoadmap(isExpanded ? null : roadmap.id)}
+                    disabled={roadmap.status !== 'completed'}
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <CardTitle className="text-base">{roadmap.targetRole}</CardTitle>
-                        {roadmap.provider === 'demo' && (
-                          <Badge variant="warning" className="text-xs">Demo</Badge>
+                        {roadmap.status === 'processing' && (
+                          <Badge variant="info" className="text-xs flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" /> Generating…
+                          </Badge>
+                        )}
+                        {roadmap.status === 'failed' && (
+                          <Badge variant="destructive" className="text-xs">Failed</Badge>
                         )}
                       </div>
-                      <div className="flex items-center gap-3">
-                        <Progress value={pct} className="h-1.5 flex-1 max-w-40" />
-                        <span className="text-xs text-muted-foreground">
-                          {completed}/{milestones.length} milestones · {pct}%
-                        </span>
-                      </div>
+                      {roadmap.status === 'completed' && (
+                        <div className="flex items-center gap-3">
+                          <Progress value={pct} className="h-1.5 flex-1 max-w-40" />
+                          <span className="text-xs text-muted-foreground">
+                            {completed}/{milestones.length} milestones · {pct}%
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    {isExpanded ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
+                    {roadmap.status === 'completed' && (
+                      isExpanded ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />
+                    )}
+                    {roadmap.status === 'processing' && (
+                      <RefreshCw className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+                    )}
                   </button>
                 </CardHeader>
 

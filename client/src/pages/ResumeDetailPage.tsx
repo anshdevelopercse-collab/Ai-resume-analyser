@@ -126,29 +126,24 @@ export default function ResumeDetailPage() {
   const { data: analysesData, isLoading: analysesLoading } = useQuery({
     queryKey: ['analyses', id],
     queryFn: async () => {
-      const { data } = await api.get(`/resumes/analyses/all?limit=5`);
-      return data.data?.filter((a: any) =>
-      a.resumeId === id || a.resumeId?.id === id || a.resumeId?._id === id
-    );
+      const { data } = await api.get(`/resumes/analyses/all?resumeId=${id}&limit=10`);
+      return data.data;
+    },
+    refetchInterval: (query) => {
+      const hasProcessing = query.state.data?.some((a: any) => a.status === 'processing');
+      return hasProcessing ? 3000 : false;
     },
   });
 
-  const analyzeMutation = useMutation({
-    mutationFn: async () => {
-      const { data } = await api.post(`/resumes/${id}/analyses`);
+  const analyzeMutation = useMutation<any, Error, boolean>({
+    mutationFn: async (force: boolean) => {
+      const { data } = await api.post(`/resumes/${id}/analyses${force ? '?force=true' : ''}`);
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['analyses', id] });
       queryClient.invalidateQueries({ queryKey: ['analyses'] });
-      toast.success(data.meta?.demoMode
-        ? 'Demo analysis started'
-        : 'AI analysis started'
-      );
-      // Poll every 3s for up to 90s to catch completion or failure
-      const poll = setInterval(() => {
-        queryClient.invalidateQueries({ queryKey: ['analyses', id] });
-      }, 3000);
-      setTimeout(() => clearInterval(poll), 90000);
+      toast.success('AI analysis started — results will appear shortly');
     },
     onError: (err) => toast.error(getApiError(err)),
   });
@@ -173,15 +168,15 @@ export default function ResumeDetailPage() {
           </p>
         </div>
         <Button
-          onClick={() => analyzeMutation.mutate()}
-          disabled={analyzeMutation.isPending}
+          onClick={() => analyzeMutation.mutate(!!completedAnalysis)}
+          disabled={analyzeMutation.isPending || latestAnalysis?.status === 'processing'}
         >
-          {analyzeMutation.isPending ? (
+          {analyzeMutation.isPending || latestAnalysis?.status === 'processing' ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <BarChart2 className="mr-2 h-4 w-4" />
           )}
-          {completedAnalysis ? 'Re-analyze' : 'Analyze Resume'}
+          {latestAnalysis?.status === 'processing' ? 'Analyzing…' : completedAnalysis ? 'Re-analyze' : 'Analyze Resume'}
         </Button>
       </div>
 

@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
+import axios from 'axios';
 import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api';
 import { formatRelativeTime, scoreColor, scoreLabel } from '@/lib/utils';
@@ -46,11 +47,12 @@ function DemoBanner() {
     <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 p-4 flex gap-3">
       <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
       <div>
-        <div className="font-medium text-amber-900 dark:text-amber-300 text-sm">Demo Mode Active</div>
+        <div className="font-medium text-amber-900 dark:text-amber-300 text-sm">No AI Provider Configured</div>
         <div className="text-amber-700 dark:text-amber-400 text-xs mt-1">
-          AI analysis is using sample data. To enable real AI analysis, configure{' '}
-          <code className="bg-amber-200 dark:bg-amber-900 px-1 rounded">ANTHROPIC_API_KEY</code> or{' '}
-          <code className="bg-amber-200 dark:bg-amber-900 px-1 rounded">OPENAI_API_KEY</code> in your server environment.
+          AI features (analysis, job match, interview prep, roadmap) require an API key. Add{' '}
+          <code className="bg-amber-200 dark:bg-amber-900 px-1 rounded">ANTHROPIC_API_KEY</code>,{' '}
+          <code className="bg-amber-200 dark:bg-amber-900 px-1 rounded">OPENAI_API_KEY</code>, or{' '}
+          <code className="bg-amber-200 dark:bg-amber-900 px-1 rounded">GEMINI_API_KEY</code> to your server environment.
         </div>
       </div>
     </div>
@@ -87,13 +89,14 @@ export default function DashboardPage() {
   const { data: readyData } = useQuery({
     queryKey: ['serverReady'],
     queryFn: async () => {
-      const { data } = await api.get('/../../ready');
+      const { data } = await axios.get('/ready');
       return data;
     },
     retry: false,
+    staleTime: 60_000,
   });
 
-  const isDemoMode = readyData?.demoMode;
+  const aiNotConfigured = readyData?.aiConfigured === false;
 
   const latestAnalysis = analysesData?.data?.[0];
   const analysisScore = latestAnalysis?.result?.overallScore;
@@ -118,7 +121,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {isDemoMode && <DemoBanner />}
+      {aiNotConfigured && <DemoBanner />}
 
       {/* Stats grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -41,11 +41,12 @@ export async function updateAnalysis(
   return prisma.resumeAnalysis.update({ where: { id }, data });
 }
 
-export async function listAnalyses(userId: string, page: number, limit: number) {
+export async function listAnalyses(userId: string, page: number, limit: number, resumeId?: string) {
   const skip = (page - 1) * limit;
+  const where = resumeId ? { userId, resumeId } : { userId };
   const [analyses, total] = await Promise.all([
     prisma.resumeAnalysis.findMany({
-      where: { userId },
+      where,
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
@@ -53,7 +54,7 @@ export async function listAnalyses(userId: string, page: number, limit: number) 
         resume: { select: { id: true, originalName: true, label: true } },
       },
     }),
-    prisma.resumeAnalysis.count({ where: { userId } }),
+    prisma.resumeAnalysis.count({ where }),
   ]);
   return { analyses, total };
 }

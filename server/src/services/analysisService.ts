@@ -39,27 +39,30 @@ Return JSON with this exact schema:
 }`;
 }
 
-export async function createAnalysisJob(userId: string, resumeId: string) {
+export async function createAnalysisJob(userId: string, resumeId: string, force = false) {
   const resume = await findResumeForAnalysis(resumeId, userId);
   if (!resume) throw new NotFoundError('Resume');
 
   const idempotencyKey = `analysis:${userId}:${resumeId}`;
 
-  const existing = await findAnalysisByIdempotencyKey(idempotencyKey, ['completed', 'processing']);
-  if (existing) return existing;
+  // Return existing if not forcing a re-analysis
+  if (!force) {
+    const existing = await findAnalysisByIdempotencyKey(idempotencyKey, ['completed', 'processing']);
+    if (existing) return existing;
+  }
 
-  // If a previous attempt failed, reset it and retry rather than hitting a unique key conflict.
-  const failed = await findAnalysisByIdempotencyKey(idempotencyKey, ['failed']);
-  if (failed) {
-    const reset = await updateAnalysis(failed.id, {
+  // Reset any existing record (completed, processing, or failed) rather than creating a duplicate
+  const existingAny = await findAnalysisByIdempotencyKey(idempotencyKey, ['completed', 'processing', 'failed']);
+  if (existingAny) {
+    const reset = await updateAnalysis(existingAny.id, {
       status: 'processing',
       result: null,
       error: null,
       provider: 'pending',
       aiModel: 'pending',
     });
-    processAnalysis(failed.id, resume.extractedText).catch(err => {
-      logger.error('Analysis reprocessing failed', { error: err, analysisId: failed.id });
+    processAnalysis(existingAny.id, resume.extractedText).catch(err => {
+      logger.error('Analysis reprocessing failed', { error: err, analysisId: existingAny.id });
     });
     return reset;
   }
@@ -140,7 +143,7 @@ export async function getAnalysis(userId: string, analysisId: string) {
   return analysis;
 }
 
-export async function getUserAnalyses(userId: string, page = 1, limit = 10) {
-  const { analyses, total } = await listAnalyses(userId, page, limit);
+export async function getUserAnalyses(userId: string, page = 1, limit = 10, resumeId?: string) {
+  const { analyses, total } = await listAnalyses(userId, page, limit, resumeId);
   return { analyses, total, page, limit, totalPages: Math.ceil(total / limit) };
 }

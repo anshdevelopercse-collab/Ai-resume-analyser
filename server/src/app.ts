@@ -93,7 +93,17 @@ app.get('/ready', async (_req, res) => {
   try {
     const { prisma } = await import('./lib/prisma');
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: 'ready', postgres: 'connected', timestamp: new Date().toISOString() });
+    const aiConfigured = !!(
+      config.ai.anthropicApiKey ||
+      config.ai.openaiApiKey ||
+      config.ai.geminiApiKey
+    );
+    res.json({
+      status: 'ready',
+      postgres: 'connected',
+      aiConfigured,
+      timestamp: new Date().toISOString(),
+    });
   } catch {
     res.status(503).json({ status: 'not_ready', postgres: 'disconnected' });
   }

@@ -6,7 +6,8 @@ export async function startAnalysis(
   req: AuthRequest, res: Response, next: NextFunction
 ): Promise<void> {
   try {
-    const analysis = await createAnalysisJob(req.userId!, req.params.resumeId as string);
+    const force = req.query.force === 'true';
+    const analysis = await createAnalysisJob(req.userId!, req.params.resumeId as string, force);
 
     await incrementUsage(req.userId!, 'usageAiAnalyses');
 
@@ -33,7 +34,8 @@ export async function listAnalyses(
   try {
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 10));
-    const result = await getUserAnalyses(req.userId!, page, limit);
+    const resumeId = req.query.resumeId as string | undefined;
+    const result = await getUserAnalyses(req.userId!, page, limit, resumeId);
 
     res.json({
       success: true,

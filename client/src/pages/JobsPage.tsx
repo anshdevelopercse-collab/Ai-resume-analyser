@@ -46,6 +46,10 @@ export default function JobsPage() {
       const { data } = await api.get('/jobs/matches?limit=10');
       return data;
     },
+    refetchInterval: (query) => {
+      const hasProcessing = query.state.data?.data?.some((m: any) => m.status === 'processing');
+      return hasProcessing ? 3000 : false;
+    },
   });
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<JobDescriptionInput>({
@@ -82,15 +86,11 @@ export default function JobsPage() {
       const { data } = await api.post(`/jobs/${jobId}/match`, { resumeId });
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['jobMatches'] });
-      toast.success(data.meta?.demoMode ? 'Demo match analysis started' : 'Job match analysis started');
+      toast.success('Job match analysis started — results will appear shortly');
       setSelectedJob(null);
-      // Poll for completion
-      const poll = setInterval(() => {
-        queryClient.invalidateQueries({ queryKey: ['jobMatches'] });
-      }, 3000);
-      setTimeout(() => clearInterval(poll), 30000);
+      setSelectedResume('');
     },
     onError: (err) => toast.error(getApiError(err)),
   });
@@ -285,7 +285,7 @@ export default function JobsPage() {
                     {expandedMatch === match.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </button>
 
-                  {expandedMatch === match._id && match.result && (
+                  {expandedMatch === match.id && match.result && (
                     <div className="mt-4 pt-4 border-t space-y-4">
                       {match.provider === 'demo' && (
                         <div className="flex gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg">

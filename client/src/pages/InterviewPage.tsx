@@ -70,12 +70,23 @@ export default function InterviewPage() {
   const submitAnswerMutation = useMutation({
     mutationFn: async ({ sessionId, questionId, answer }: { sessionId: string; questionId: string; answer: string }) => {
       const { data } = await api.post(`/interviews/${sessionId}/answers`, { questionId, answer });
-      return data.data;
+      return { ...data.data, questionId };
     },
-    onSuccess: (data, vars) => {
-      toast.success('Answer submitted');
+    onSuccess: (data) => {
+      toast.success('AI feedback received');
       setSubmittingAnswer(null);
-      // Update session locally to show feedback
+      // Update the selected session's question with AI feedback so it shows immediately
+      if (data?.feedback && selectedSession) {
+        setSelectedSession((prev: any) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            questions: prev.questions.map((q: any) =>
+              q.id === data.questionId ? { ...q, aiFeedback: data.feedback } : q
+            ),
+          };
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ['interviewSessions'] });
     },
     onError: (err) => {
