@@ -67,6 +67,18 @@ export default function RoadmapPage() {
     onError: (err) => toast.error(getApiError(err)),
   });
 
+  const retryMutation = useMutation({
+    mutationFn: async (roadmapId: string) => {
+      const { data } = await api.post(`/roadmaps/${roadmapId}/retry`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['roadmaps'] });
+      toast.success('Retrying roadmap generation…');
+    },
+    onError: (err) => toast.error(getApiError(err)),
+  });
+
   const toggleMilestoneMutation = useMutation({
     mutationFn: async ({ roadmapId, milestoneId, completed }: { roadmapId: string; milestoneId: string; completed: boolean }) => {
       const { data } = await api.patch(`/roadmaps/${roadmapId}/milestones/${milestoneId}`, { completed });
@@ -192,7 +204,18 @@ export default function RoadmapPage() {
                           </Badge>
                         )}
                         {roadmap.status === 'failed' && (
-                          <Badge variant="destructive" className="text-xs">Failed</Badge>
+                          <>
+                            <Badge variant="destructive" className="text-xs">Failed</Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-xs"
+                              disabled={retryMutation.isPending}
+                              onClick={(e) => { e.stopPropagation(); retryMutation.mutate(roadmap.id); }}
+                            >
+                              <RefreshCw className="h-3 w-3 mr-1" /> Retry
+                            </Button>
+                          </>
                         )}
                       </div>
                       {roadmap.status === 'completed' && (
@@ -202,6 +225,9 @@ export default function RoadmapPage() {
                             {completed}/{milestones.length} milestones · {pct}%
                           </span>
                         </div>
+                      )}
+                      {roadmap.status === 'failed' && roadmap.error && (
+                        <p className="text-xs text-destructive mt-1 line-clamp-2">{roadmap.error}</p>
                       )}
                     </div>
                     {roadmap.status === 'completed' && (

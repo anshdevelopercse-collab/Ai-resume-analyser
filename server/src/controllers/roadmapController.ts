@@ -6,6 +6,7 @@ import {
   findRoadmapById,
   updateRoadmap,
   listRoadmaps,
+  resetRoadmapForRetry,
 } from '../repositories/roadmapRepository';
 import { findResumeById } from '../repositories/resumeRepository';
 import { findJobDescriptionById } from '../repositories/jobDescriptionRepository';
@@ -24,6 +25,13 @@ export async function generateRoadmap(req: AuthRequest, res: Response, next: Nex
 
     if (!targetRole?.trim()) {
       throw new AppError('targetRole is required', 400);
+    }
+
+    // Fail fast if no AI provider is available — avoid creating a doomed processing record
+    try {
+      getAIProvider();
+    } catch {
+      throw new AppError('No AI provider is configured on this server. Please add an ANTHROPIC_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY to the server environment.', 503);
     }
 
     let resumeText = '';
@@ -49,6 +57,47 @@ export async function generateRoadmap(req: AuthRequest, res: Response, next: Nex
 
     processRoadmap(roadmap.id, targetRole, resumeText, jobText).catch((err) => {
       logger.error('Roadmap processing error', { err, roadmapId: roadmap.id });
+    });
+
+    res.status(202).json({ success: true, data: roadmap });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function retryRoadmap(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = req.userId!;
+    const { id } = req.params;
+
+    const existing = await findRoadmapById(id as string, userId);
+    if (!existing) throw new NotFoundError('Roadmap');
+    if (existing.status === 'processing') {
+      throw new AppError('Roadmap is already being generated', 409);
+    }
+
+    // Fail fast if no AI provider is available
+    try {
+      getAIProvider();
+    } catch {
+      throw new AppError('No AI provider is configured on this server. Please add an ANTHROPIC_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY to the server environment.', 503);
+    }
+
+    let resumeText = '';
+    let jobText = '';
+    if (existing.resumeId) {
+      const resume = await findResumeById(existing.resumeId, userId);
+      if (resume?.extractedText) resumeText = resume.extractedText.slice(0, 4000);
+    }
+    if (existing.jobDescriptionId) {
+      const job = await findJobDescriptionById(existing.jobDescriptionId, userId);
+      if (job?.description) jobText = job.description.slice(0, 2000);
+    }
+
+    const roadmap = await resetRoadmapForRetry(id as string, userId);
+
+    processRoadmap(roadmap.id, existing.targetRole, resumeText, jobText).catch((err) => {
+      logger.error('Roadmap retry processing error', { err, roadmapId: roadmap.id });
     });
 
     res.status(202).json({ success: true, data: roadmap });
@@ -122,8 +171,9 @@ Guidelines:
       milestones,
     });
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     logger.error('Roadmap AI processing failed', { err, roadmapId });
-    await updateRoadmap(roadmapId, { status: 'failed' });
+    await updateRoadmap(roadmapId, { status: 'failed', error: message }).catch(() => {});
   }
 }
 
@@ -142,7 +192,8 @@ export async function getRoadmaps(req: AuthRequest, res: Response, next: NextFun
 export async function updateMilestone(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.userId!;
-    const { roadmapId, milestoneId } = req.params;
+    const roadmapId = req.params.roadmapId as string;
+    const milestoneId = req.params.milestoneId as string;
     const { completed } = req.body as { completed: boolean };
 
     const roadmap = await findRoadmapById(roadmapId, userId);

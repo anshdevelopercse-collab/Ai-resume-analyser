@@ -23,9 +23,17 @@ export async function updateRoadmap(
     summary: string;
     skillGaps: any;
     milestones: any;
+    error: string | null;
   }>,
 ) {
   return prisma.roadmap.update({ where: { id }, data });
+}
+
+export async function resetRoadmapForRetry(id: string, userId: string) {
+  return prisma.roadmap.update({
+    where: { id, userId },
+    data: { status: 'processing', error: null, summary: null, skillGaps: [], milestones: [] },
+  });
 }
 
 export async function listRoadmaps(userId: string, limit: number) {

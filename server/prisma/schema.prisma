@@ -294,6 +294,7 @@ model Roadmap {
   summary          String?       @db.VarChar(1000)
   skillGaps        Json          @default("[]") @map("skill_gaps")
   milestones       Json          @default("[]")
+  error            String?
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @updatedAt @map("updated_at")
 
