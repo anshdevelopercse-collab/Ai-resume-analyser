@@ -229,7 +229,7 @@ export default function DashboardPage() {
                   <div key={analysis.id} className="p-3 rounded-lg border">
                     <div className="flex items-center justify-between mb-2">
                       <div className="text-sm font-medium truncate">
-                        {(analysis.resumeId as any)?.label || (analysis.resumeId as any)?.originalName || 'Resume'}
+                        {(analysis.resume as any)?.label || (analysis.resume as any)?.originalName || 'Resume'}
                       </div>
                       {analysis.status === 'completed' && analysis.result && (
                         <span className={`text-sm font-bold ${scoreColor(analysis.result.overallScore)}`}>

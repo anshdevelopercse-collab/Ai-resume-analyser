@@ -52,6 +52,21 @@ export async function createJobMatchJob(
   const existing = await findJobMatchByIdempotencyKey(idempotencyKey, ['completed', 'processing']);
   if (existing) return existing;
 
+  const failed = await findJobMatchByIdempotencyKey(idempotencyKey, ['failed']);
+  if (failed) {
+    const reset = await updateJobMatch(failed.id, {
+      status: 'processing',
+      result: null,
+      error: null,
+      provider: 'pending',
+      aiModel: 'pending',
+    });
+    processMatch(failed.id, resume.extractedText, jobDesc.description).catch(err => {
+      logger.error('Job match reprocessing failed', { error: err, matchId: failed.id });
+    });
+    return reset;
+  }
+
   const match = await createJobMatch({
     userId,
     resumeId,

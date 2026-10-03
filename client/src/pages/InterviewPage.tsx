@@ -120,7 +120,7 @@ export default function InterviewPage() {
               >
                 <option value="">No resume selected</option>
                 {resumesData?.data?.map((r: any) => (
-                  <option key={r._id} value={r._id}>{r.label || r.originalName}</option>
+                  <option key={r.id} value={r.id}>{r.label || r.originalName}</option>
                 ))}
               </select>
             </div>
@@ -133,7 +133,7 @@ export default function InterviewPage() {
               >
                 <option value="">No job selected</option>
                 {jobsData?.data?.map((j: any) => (
-                  <option key={j._id} value={j._id}>{j.title} {j.company && `— ${j.company}`}</option>
+                  <option key={j.id} value={j.id}>{j.title} {j.company && `— ${j.company}`}</option>
                 ))}
               </select>
             </div>
@@ -232,7 +232,7 @@ export default function InterviewPage() {
                           onClick={async () => {
                             setSubmittingAnswer(q.id);
                             await submitAnswerMutation.mutateAsync({
-                              sessionId: selectedSession._id,
+                              sessionId: selectedSession.id,
                               questionId: q.id,
                               answer: answers[q.id],
                             });
@@ -275,7 +275,7 @@ export default function InterviewPage() {
           <div className="space-y-2">
             {sessionsData?.map((session: any) => (
               <div
-                key={session._id}
+                key={session.id}
                 className="flex items-center gap-4 p-4 border rounded-xl hover:bg-accent cursor-pointer transition-colors"
                 onClick={() => setSelectedSession(session)}
               >

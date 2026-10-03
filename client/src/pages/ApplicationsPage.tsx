@@ -62,7 +62,7 @@ function ApplicationCard({ app, onDelete, onEdit }: {
             variant="ghost"
             size="sm"
             className="h-7 px-2 text-destructive hover:text-destructive"
-            onClick={() => confirm('Delete this application?') && onDelete(app._id)}
+            onClick={() => confirm('Delete this application?') && onDelete(app.id)}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
@@ -106,7 +106,7 @@ export default function ApplicationsPage() {
   const createMutation = useMutation({
     mutationFn: async (data: ApplicationInput) => {
       if (editingApp) {
-        const res = await api.put(`/applications/${editingApp._id}`, data);
+        const res = await api.put(`/applications/${editingApp.id}`, data);
         return res.data.data;
       }
       const res = await api.post('/applications', data);
@@ -138,7 +138,7 @@ export default function ApplicationsPage() {
   const handleEdit = (app: any) => {
     setEditingApp(app);
     Object.entries(app).forEach(([k, v]) => {
-      if (k !== '_id' && k !== 'userId') setValue(k as any, v);
+      if (k !== 'id' && k !== 'userId') setValue(k as any, v);
     });
     setShowForm(true);
   };
@@ -208,7 +208,7 @@ export default function ApplicationsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {data?.data?.map((app: any) => (
             <ApplicationCard
-              key={app._id}
+              key={app.id}
               app={app}
               onDelete={(id) => deleteMutation.mutate(id)}
               onEdit={handleEdit}

@@ -49,6 +49,9 @@ export async function listAnalyses(userId: string, page: number, limit: number) 
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
+      include: {
+        resume: { select: { id: true, originalName: true, label: true } },
+      },
     }),
     prisma.resumeAnalysis.count({ where: { userId } }),
   ]);

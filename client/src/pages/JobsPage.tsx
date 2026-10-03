@@ -172,7 +172,7 @@ export default function JobsPage() {
               >
                 <option value="">-- Choose a resume --</option>
                 {resumesData?.data?.map((r: any) => (
-                  <option key={r._id} value={r._id}>
+                  <option key={r.id} value={r.id}>
                     {r.label || r.originalName}
                   </option>
                 ))}
@@ -208,7 +208,7 @@ export default function JobsPage() {
         ) : (
           <div className="space-y-3">
             {jobsData?.data?.map((job: any) => (
-              <Card key={job._id}>
+              <Card key={job.id}>
                 <CardContent className="p-4 flex items-center gap-4">
                   <div className="h-10 w-10 rounded-lg bg-violet-50 dark:bg-violet-950 flex items-center justify-center shrink-0">
                     <Briefcase className="h-5 w-5 text-violet-600" />
@@ -225,7 +225,7 @@ export default function JobsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setSelectedJob(job._id)}
+                      onClick={() => setSelectedJob(job.id)}
                     >
                       <BarChart2 className="mr-1.5 h-4 w-4" /> Match Resume
                     </Button>
@@ -233,7 +233,7 @@ export default function JobsPage() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => confirm('Delete this job description?') && deleteMutation.mutate(job._id)}
+                      onClick={() => confirm('Delete this job description?') && deleteMutation.mutate(job.id)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -257,20 +257,20 @@ export default function JobsPage() {
         ) : (
           <div className="space-y-3">
             {matchesData?.data?.map((match: any) => (
-              <Card key={match._id}>
+              <Card key={match.id}>
                 <CardContent className="p-4">
                   <button
                     className="w-full flex items-center gap-4 text-left"
-                    onClick={() => setExpandedMatch(expandedMatch === match._id ? null : match._id)}
+                    onClick={() => setExpandedMatch(expandedMatch === match.id ? null : match.id)}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-medium text-sm">
-                          {match.resumeId?.label || match.resumeId?.originalName || 'Resume'}
+                          {match.resume?.label || match.resume?.originalName || 'Resume'}
                         </span>
                         <span className="text-muted-foreground text-xs">→</span>
                         <span className="font-medium text-sm">
-                          {match.jobDescriptionId?.title || 'Job'}
+                          {match.jobDescription?.title || 'Job'}
                         </span>
                       </div>
                       {match.status === 'completed' && match.result && (
@@ -282,7 +282,7 @@ export default function JobsPage() {
                       {match.status === 'processing' && <Badge variant="info">Processing...</Badge>}
                       {match.status === 'failed' && <Badge variant="destructive">Failed</Badge>}
                     </div>
-                    {expandedMatch === match._id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    {expandedMatch === match.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </button>
 
                   {expandedMatch === match._id && match.result && (

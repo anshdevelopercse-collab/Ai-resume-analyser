@@ -57,7 +57,7 @@ export default function RoadmapPage() {
       queryClient.invalidateQueries({ queryKey: ['roadmaps'] });
       toast.success(data.meta?.demoMode ? 'Demo roadmap generated' : 'Skill roadmap generated');
       setShowGenerate(false);
-      if (data.data?._id) setExpandedRoadmap(data.data._id);
+      if (data.data?.id) setExpandedRoadmap(data.data.id);
     },
     onError: (err) => toast.error(getApiError(err)),
   });
@@ -119,7 +119,7 @@ export default function RoadmapPage() {
               >
                 <option value="">No resume selected</option>
                 {resumesData?.data?.map((r: any) => (
-                  <option key={r._id} value={r._id}>{r.label || r.originalName}</option>
+                  <option key={r.id} value={r.id}>{r.label || r.originalName}</option>
                 ))}
               </select>
             </div>
@@ -132,7 +132,7 @@ export default function RoadmapPage() {
               >
                 <option value="">No job selected</option>
                 {jobsData?.data?.map((j: any) => (
-                  <option key={j._id} value={j._id}>{j.title}{j.company && ` — ${j.company}`}</option>
+                  <option key={j.id} value={j.id}>{j.title}{j.company && ` — ${j.company}`}</option>
                 ))}
               </select>
             </div>
@@ -168,14 +168,14 @@ export default function RoadmapPage() {
             const milestones = roadmap.milestones || [];
             const completed = milestones.filter((m: any) => m.completed).length;
             const pct = milestones.length > 0 ? Math.round((completed / milestones.length) * 100) : 0;
-            const isExpanded = expandedRoadmap === roadmap._id;
+            const isExpanded = expandedRoadmap === roadmap.id;
 
             return (
-              <Card key={roadmap._id}>
+              <Card key={roadmap.id}>
                 <CardHeader className="pb-3">
                   <button
                     className="w-full flex items-center gap-3 text-left"
-                    onClick={() => setExpandedRoadmap(isExpanded ? null : roadmap._id)}
+                    onClick={() => setExpandedRoadmap(isExpanded ? null : roadmap.id)}
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
@@ -233,7 +233,7 @@ export default function RoadmapPage() {
                           <button
                             className="shrink-0 mt-0.5"
                             onClick={() => toggleMilestoneMutation.mutate({
-                              roadmapId: roadmap._id,
+                              roadmapId: roadmap.id,
                               milestoneId: milestone.id || String(idx),
                               completed: !milestone.completed,
                             })}
