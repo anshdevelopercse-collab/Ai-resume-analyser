@@ -32,6 +32,9 @@ app.use(cors({
     const allowed = [
       config.clientUrl,
       'http://localhost:5173',
+      'http://localhost:5174',
+      'http://localhost:5175',
+      'http://localhost:5176',
       'http://localhost:3000',
       'http://localhost:4173',
       // Docker: nginx serves the built client on port 80; browsers send Origin: http://localhost
@@ -39,7 +42,14 @@ app.use(cors({
       'http://localhost:80',
     ].filter(Boolean);
 
-    if (!origin || allowed.includes(origin)) {
+    // Allow any *.claude.ai or *.cloudflare.com proxy origin used by Claude Code web
+    const isCloudProxy = origin && (
+      origin.endsWith('.claude.ai') ||
+      origin.endsWith('.cloudflarepreview.com') ||
+      origin.endsWith('.workers.dev')
+    );
+
+    if (!origin || allowed.includes(origin) || isCloudProxy) {
       callback(null, true);
     } else {
       const err = new Error(`CORS: origin ${origin} not allowed`) as any;
